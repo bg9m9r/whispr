@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <!-- Trimming can break Avalonia/reflection; disable for distribution builds -->
+    <PublishTrimmed>false</PublishTrimmed>
+  </PropertyGroup>
+</Project>

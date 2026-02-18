@@ -29,6 +29,32 @@ dotnet run --project Whispr.Client
 
 ---
 
+## Installing Whispr
+
+Pre-built client and server binaries are published on [GitHub Releases](/releases). Download the archive for your platform and architecture.
+
+### Client
+
+| Platform    | Download                    | Run |
+|-------------|-----------------------------|-----|
+| Windows x64 | `whispr-client-win-x64.zip` | Extract, then run `Whispr.Client.exe` |
+| Linux x64  | `whispr-client-linux-x64.tar.gz` | Extract, `chmod +x Whispr.Client`, then `./Whispr.Client` |
+| macOS Intel | `whispr-client-osx-x64.tar.gz` | Extract, then `./Whispr.Client` |
+| macOS Apple Silicon | `whispr-client-osx-arm64.tar.gz` | Extract, then `./Whispr.Client` |
+
+Ensure [system dependencies](#client-whisprclient) are installed on Linux (OpenAL, X11, etc.).
+
+### Server
+
+| Platform    | Download                    | Run |
+|-------------|-----------------------------|-----|
+| Windows x64 | `whispr-server-win-x64.zip` | Extract, add `cert.pfx` and optionally edit `appsettings.json`, then run `Whispr.Server.exe` |
+| Linux x64  | `whispr-server-linux-x64.tar.gz` | Extract, add `cert.pfx`, then `./Whispr.Server` |
+
+For production server setup (Docker, systemd, certificates), see [Server setup](docs/SERVER_SETUP.md).
+
+---
+
 ## Dependencies
 
 ### Server (Whispr.Server)
