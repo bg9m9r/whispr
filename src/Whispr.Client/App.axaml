@@ -1,0 +1,35 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Whispr.Client.App"
+             RequestedThemeVariant="Dark">
+    <Application.Resources>
+        <ResourceDictionary>
+            <Color x:Key="WhisprBackgroundColor">#202225</Color>
+            <Color x:Key="WhisprSurfaceColor">#2f3136</Color>
+            <Color x:Key="WhisprSurfaceLightColor">#36393f</Color>
+            <Color x:Key="WhisprAccentColor">#5865F2</Color>
+            <Color x:Key="WhisprSuccessColor">#3ba55d</Color>
+            <Color x:Key="WhisprDangerColor">#ed4245</Color>
+            <Color x:Key="WhisprTextSecondaryColor">#b9bbbe</Color>
+            <Color x:Key="WhisprTextMutedColor">#72767d</Color>
+            <SolidColorBrush x:Key="WhisprBackground" Color="{StaticResource WhisprBackgroundColor}"/>
+            <SolidColorBrush x:Key="WhisprSurface" Color="{StaticResource WhisprSurfaceColor}"/>
+            <SolidColorBrush x:Key="WhisprSurfaceLight" Color="{StaticResource WhisprSurfaceLightColor}"/>
+            <SolidColorBrush x:Key="WhisprAccent" Color="{StaticResource WhisprAccentColor}"/>
+            <SolidColorBrush x:Key="WhisprSuccess" Color="{StaticResource WhisprSuccessColor}"/>
+            <SolidColorBrush x:Key="WhisprDanger" Color="{StaticResource WhisprDangerColor}"/>
+            <SolidColorBrush x:Key="WhisprTextSecondary" Color="{StaticResource WhisprTextSecondaryColor}"/>
+            <SolidColorBrush x:Key="WhisprTextMuted" Color="{StaticResource WhisprTextMutedColor}"/>
+        </ResourceDictionary>
+    </Application.Resources>
+    <Application.Styles>
+        <FluentTheme>
+            <FluentTheme.Palettes>
+                <ColorPaletteResources x:Key="Dark"
+                    Accent="#5865F2"
+                    RegionColor="#202225"
+                    ErrorText="#ed4245" />
+            </FluentTheme.Palettes>
+        </FluentTheme>
+    </Application.Styles>
+</Application>

@@ -1,0 +1,26 @@
+# Build
+bin/
+obj/
+out/
+
+# AI
+plans/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Certificates (sensitive)
+*.pfx
+
+# User store (contains password hashes)
+users.json
+
+# SQLite database
+*.db
+
+# User-specific
+*.user
+*.suo

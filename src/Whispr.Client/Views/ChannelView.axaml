@@ -1,0 +1,112 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:models="clr-namespace:Whispr.Client.Models"
+             xmlns:conv="clr-namespace:Whispr.Client.Converters"
+             xmlns:primitives="clr-namespace:Avalonia.Controls.Primitives;assembly=Avalonia.Controls"
+             x:Class="Whispr.Client.Views.ChannelView"
+             Background="{DynamicResource WhisprBackground}">
+    <UserControl.Resources>
+        <conv:InverseBoolConverter x:Key="InverseBool"/>
+        <conv:SpeakerIconBrushConverter x:Key="SpeakerIconBrush"/>
+        <conv:SpeakingGlowEffectConverter x:Key="SpeakingGlowEffect"/>
+    </UserControl.Resources>
+    <Grid ColumnDefinitions="280,*" RowDefinitions="*">
+        <Border Grid.Row="0" Grid.Column="0" Background="{DynamicResource WhisprSurface}" CornerRadius="6" Margin="0,0,8,0" Padding="0">
+            <Grid RowDefinitions="Auto,*,Auto">
+                <TextBlock Grid.Row="0" Text="Voice Channels" FontSize="16" FontWeight="SemiBold" Foreground="#ffffff" Margin="12,12,12,8"/>
+                <Border x:Name="ChannelTreeHost" Grid.Row="1" Margin="8" Background="Transparent">
+                    <primitives:FlyoutBase.AttachedFlyout>
+                        <Flyout Placement="AnchorAndGravity" ShowMode="Standard">
+                            <StackPanel Spacing="8" MinWidth="200" DataContext="{Binding $parent[UserControl].DataContext}">
+                                <TextBox x:Name="CreateChannelNameBox" Watermark="Channel name" Text="{Binding CreateChannelName, Mode=TwoWay}"/>
+                                <Button Content="Create" Click="OnCreateChannelFlyoutClick"/>
+                            </StackPanel>
+                        </Flyout>
+                    </primitives:FlyoutBase.AttachedFlyout>
+                    <TreeView x:Name="ChannelTree" Background="Transparent"
+                              ContextRequested="OnContextRequested"
+                              ItemsSource="{Binding ServerTreeRootItems}"
+                              SelectionChanged="OnChannelSelected" Loaded="OnChannelTreeLoaded">
+                        <TreeView.ContextMenu>
+                            <ContextMenu DataContext="{Binding $parent[UserControl].DataContext}">
+                                <MenuItem x:Name="CreateChannelMenuItem" Header="Create channel" Click="OnCreateChannelContextClick"
+                                          IsVisible="{Binding IsCreateChannelVisible}" IsEnabled="{Binding IsCreateChannelEnabled}"/>
+                                <MenuItem x:Name="EditPermissionsMenuItem" Header="Edit permissions"
+                                          IsVisible="{Binding IsEditPermissionsVisible}"
+                                          Command="{Binding EditPermissionsCommand}"/>
+                            </ContextMenu>
+                        </TreeView.ContextMenu>
+                        <TreeView.ItemTemplate>
+                            <TreeDataTemplate DataType="models:ServerTreeNode" ItemsSource="{Binding Children}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="{Binding DisplayName}" Foreground="#ffffff" FontWeight="SemiBold"
+                                               VerticalAlignment="Center"/>
+                                    <Border Background="{DynamicResource WhisprAccent}" CornerRadius="4" Padding="6,2"
+                                            VerticalAlignment="Center" IsVisible="{Binding IsMe}">
+                                        <TextBlock Text="You" Foreground="#ffffff" FontSize="10" FontWeight="SemiBold"/>
+                                    </Border>
+                                    <Border Background="{DynamicResource WhisprDanger}" CornerRadius="4" Padding="6,2"
+                                            VerticalAlignment="Center" IsVisible="{Binding IsAdmin}">
+                                        <TextBlock Text="Admin" Foreground="#ffffff" FontSize="10" FontWeight="SemiBold"/>
+                                    </Border>
+                                    <Border Margin="4,0,0,0" VerticalAlignment="Center">
+                                        <PathIcon Width="14" Height="14"
+                                                  Data="M3 9v6h4l5 5V4L7 9H3z"
+                                                  Foreground="{Binding IsSpeaking, Converter={StaticResource SpeakerIconBrush}}"
+                                                  Effect="{Binding IsSpeaking, Converter={StaticResource SpeakingGlowEffect}}"/>
+                                    </Border>
+                                </StackPanel>
+                            </TreeDataTemplate>
+                        </TreeView.ItemTemplate>
+                    </TreeView>
+                </Border>
+                <StackPanel Grid.Row="2" Orientation="Vertical" Spacing="8" Margin="12,8,12,12">
+                    <TextBlock x:Name="MicStatusText" Text="{Binding MicStatusText}" Foreground="{DynamicResource WhisprDanger}" FontSize="11" TextWrapping="Wrap" IsVisible="{Binding IsMicStatusVisible}"/>
+                    <Button x:Name="TalkButton" Content="Hold to Talk"
+                            Background="{DynamicResource WhisprAccent}" Foreground="#ffffff"
+                            IsVisible="{Binding IsTalkButtonVisible}"/>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button x:Name="SettingsButton" Command="{Binding ShowSettingsCommand}" ToolTip.Tip="Settings"
+                                Width="36" Height="36" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                            <PathIcon Width="18" Height="18" Data="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39 1.96c-.5-.38-1.03-.7-1.62-.94L14.4 2.81c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.11.56-1.62.94L5.17 4.93c-.22-.08-.47 0-.59.22L2.66 8.47c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-1.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39 1.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" Foreground="{DynamicResource WhisprTextSecondary}"/>
+                        </Button>
+                        <ToggleButton x:Name="MuteSendButton" ToolTip.Tip="Mute send (stop transmitting)"
+                                     IsChecked="{Binding IsMuted, Mode=TwoWay}"
+                                     Width="36" Height="36" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                            <PathIcon Width="18" Height="18" Data="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z" Foreground="{DynamicResource WhisprTextSecondary}"/>
+                        </ToggleButton>
+                        <ToggleButton x:Name="MuteReceiveButton" ToolTip.Tip="Mute receive (stop playing received audio)"
+                                      IsChecked="{Binding IsReceiveMuted, Mode=TwoWay}"
+                                      Width="36" Height="36" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                            <PathIcon Width="18" Height="18" Data="M12 2C6.48 2 2 6.48 2 12v6h4v-6c0-3.31 2.69-6 6-6s6 2.69 6 6v6h4v-6c0-5.52-4.48-10-10-10zm0 14c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z" Foreground="{DynamicResource WhisprTextSecondary}"/>
+                        </ToggleButton>
+                    </StackPanel>
+                    <Button x:Name="DisconnectButton" Content="Disconnect" Command="{Binding DisconnectCommand}"
+                            IsEnabled="{Binding IsDisconnectEnabled}"
+                            Background="{DynamicResource WhisprDanger}" Foreground="#ffffff"/>
+                    <TextBlock Text="{Binding PingDisplayText, StringFormat='Ping: {0}'}"
+                               Foreground="{DynamicResource WhisprTextMuted}" FontSize="11"
+                               HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="0" Grid.Column="1" Background="{DynamicResource WhisprSurface}" CornerRadius="6" Padding="16">
+            <Grid RowDefinitions="Auto,*">
+                <TextBlock Grid.Row="0" x:Name="ChannelNameText" Text="{Binding CurrentChannelName}" FontSize="18" FontWeight="Bold" Foreground="#ffffff" Margin="0,0,0,12"/>
+                <Border Grid.Row="1" Background="{DynamicResource WhisprSurfaceLight}" CornerRadius="6" Padding="12">
+                    <TextBlock Text="Text chat (coming soon)" Foreground="{DynamicResource WhisprTextMuted}"
+                               VerticalAlignment="Center" HorizontalAlignment="Center" FontSize="14"/>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- Resize handles (invisible hit areas at edges) -->
+        <Border Grid.Row="0" Grid.Column="0" Width="6" Background="Transparent" Cursor="SizeWestEast"
+                HorizontalAlignment="Left" PointerPressed="OnResizeWest"/>
+        <Border Grid.Row="0" Grid.Column="1" Width="6" Background="Transparent" Cursor="SizeWestEast"
+                HorizontalAlignment="Right" PointerPressed="OnResizeEast"/>
+        <Border Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Height="6" Background="Transparent" Cursor="SizeNorthSouth"
+                VerticalAlignment="Bottom" PointerPressed="OnResizeSouth"/>
+    </Grid>
+</UserControl>

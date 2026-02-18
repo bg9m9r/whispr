@@ -1,0 +1,19 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Whispr.Client.Views.MainWindow"
+        Title="Whispr"
+        SizeToContent="WidthAndHeight"
+        MinWidth="400" MinHeight="350"
+        Background="{DynamicResource WhisprBackground}"
+        SystemDecorations="None">
+    <Grid RowDefinitions="Auto,*">
+        <Border x:Name="HeaderBar" Grid.Row="0" Background="{DynamicResource WhisprSurface}" Padding="12,8" PointerPressed="OnTitleBarPointerPressed">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="Whispr" VerticalAlignment="Center" FontSize="14" FontWeight="SemiBold" Foreground="#ffffff"/>
+                <Button Grid.Column="1" Content="✕" Command="{Binding CloseCommand}" Width="28" Height="28" FontSize="12"
+                        Background="Transparent" Foreground="{DynamicResource WhisprTextSecondary}" BorderThickness="0"/>
+            </Grid>
+        </Border>
+        <ContentControl Grid.Row="1" x:Name="ContentHost"/>
+    </Grid>
+</Window>

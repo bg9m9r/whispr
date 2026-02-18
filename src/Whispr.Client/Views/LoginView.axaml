@@ -1,0 +1,60 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:Whispr.Client.Converters"
+             x:Class="Whispr.Client.Views.LoginView"
+             Background="Transparent">
+    <UserControl.Resources>
+        <conv:InverseBoolConverter x:Key="InverseBool"/>
+    </UserControl.Resources>
+    <Grid PointerPressed="OnPointerPressed">
+        <Border Background="{DynamicResource WhisprSurface}" CornerRadius="12" Padding="40" MinWidth="360" MaxWidth="420"
+                BoxShadow="0 4 24 0 #1a000000">
+            <Grid>
+                <StackPanel Spacing="24">
+                <StackPanel Spacing="4" HorizontalAlignment="Center">
+                    <TextBlock Text="Whispr" FontSize="32" FontWeight="Bold" Foreground="#ffffff" HorizontalAlignment="Center"/>
+                    <TextBlock Text="Sign in to continue" FontSize="14" Foreground="{DynamicResource WhisprTextMuted}" HorizontalAlignment="Center"/>
+                </StackPanel>
+
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Server" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource WhisprTextSecondary}"/>
+                    <Grid ColumnDefinitions="*,72">
+                        <TextBox x:Name="HostBox" Grid.Column="0" Watermark="localhost" Text="{Binding HostText, Mode=TwoWay}" Margin="0,0,8,0"/>
+                        <TextBox x:Name="PortBox" Grid.Column="1" Watermark="Port" Text="{Binding PortText, Mode=TwoWay}"/>
+                    </Grid>
+                </StackPanel>
+
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Username" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource WhisprTextSecondary}"/>
+                    <TextBox x:Name="UsernameBox" Watermark="Enter your username" Text="{Binding Username, Mode=TwoWay}"/>
+                </StackPanel>
+
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Password" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource WhisprTextSecondary}"/>
+                    <TextBox x:Name="PasswordBox" Watermark="Enter your password" PasswordChar="•" Text="{Binding Password, Mode=TwoWay}"/>
+                </StackPanel>
+
+                <CheckBox Content="Remember me" IsChecked="{Binding RememberMe, Mode=TwoWay}"
+                          Foreground="{DynamicResource WhisprTextSecondary}" FontSize="13"/>
+
+                <StackPanel IsVisible="{Binding HasSavedCredentials}" Spacing="4">
+                    <Button Content="Clear saved credentials" Command="{Binding ClearSavedCredentialsCommand}"
+                            Background="Transparent" Foreground="{DynamicResource WhisprTextMuted}"
+                            FontSize="12" HorizontalAlignment="Left" Padding="0" BorderThickness="0"
+                            Cursor="Hand"/>
+                </StackPanel>
+
+                <Button x:Name="LoginButton" Content="Sign in / Register" Command="{Binding ConnectCommand}" IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBool}}" Margin="0,8,0,0"
+                        Background="{DynamicResource WhisprAccent}" Foreground="#ffffff"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                        Padding="0,14" FontWeight="SemiBold" FontSize="14"/>
+                </StackPanel>
+                <Button x:Name="CloseButton" Content="✕" Click="OnCloseClick"
+                        HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-8,-8,0"
+                        Width="28" Height="28" FontSize="12"
+                        Background="Transparent" Foreground="{DynamicResource WhisprTextSecondary}"
+                        BorderThickness="0"/>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

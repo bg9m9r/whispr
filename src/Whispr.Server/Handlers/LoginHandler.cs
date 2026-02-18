@@ -1,0 +1,121 @@
+using Whispr.Core.Models;
+using Whispr.Core.Protocol;
+using Whispr.Server.Server;
+using Whispr.Server.Services;
+
+namespace Whispr.Server.Handlers;
+
+internal sealed class LoginHandler
+{
+    private readonly IAuthService _auth;
+    private readonly IChannelService _channels;
+    private readonly UdpEndpointRegistry _udpRegistry;
+
+    public LoginHandler(IAuthService auth, IChannelService channels, UdpEndpointRegistry udpRegistry)
+    {
+        _auth = auth;
+        _channels = channels;
+        _udpRegistry = udpRegistry;
+    }
+
+    public async Task HandleLoginAsync(ControlMessage message, ControlHandlerContext ctx)
+    {
+        var payload = ControlProtocol.DeserializePayload<LoginRequestPayload>(message);
+        if (payload is null)
+        {
+            await ctx.SendErrorAsync("invalid_payload", "Login payload required");
+            return;
+        }
+
+        var user = _auth.ValidateOrRegister(payload.Username, payload.Password);
+        if (user is null)
+        {
+            ServerLog.Info($"Login failed: {payload.Username} (invalid password or registration disabled)");
+            var bytes = ControlProtocol.Serialize(MessageTypes.LoginResponse, new LoginResponsePayload
+            {
+                Success = false,
+                Error = "Invalid credentials"
+            });
+            await ctx.Stream.WriteAsync(bytes, ctx.CancellationToken);
+            return;
+        }
+
+        ServerLog.Info($"Login: {user.Username}");
+        var token = _auth.IssueSessionToken(user);
+        ctx.State.User = user;
+        ctx.State.Token = token;
+        ctx.State.ControlStream = ctx.Stream;
+
+        ctx.RegisterControlStream(user.Id, ctx.Stream, ctx.State);
+
+        var response = ControlProtocol.Serialize(MessageTypes.LoginResponse, new LoginResponsePayload
+        {
+            Success = true,
+            Token = token,
+            UserId = user.Id,
+            Username = user.Username,
+            Role = user.Role.ToString().ToLowerInvariant(),
+            IsAdmin = _auth.IsAdmin(user.Id)
+        });
+        await ctx.Stream.WriteAsync(response, ctx.CancellationToken);
+
+        var joinResult = _channels.JoinDefaultChannel(user.Id);
+        if (joinResult is not null)
+        {
+            var (channel, keyMaterial) = joinResult.Value;
+            ctx.State.RoomId = channel.Id;
+            var members = channel.MemberIds.Select(id => new MemberInfo
+            {
+                UserId = id,
+                Username = _auth.GetUsername(id) ?? id.ToString(),
+                ClientId = _udpRegistry.GetClientId(id) ?? 0,
+                IsAdmin = _auth.IsAdmin(id)
+            }).ToList();
+            var roomJoined = ControlProtocol.Serialize(MessageTypes.RoomJoined, new RoomJoinedPayload
+            {
+                RoomId = channel.Id,
+                RoomName = channel.Name,
+                MemberIds = channel.MemberIds,
+                Members = members,
+                KeyMaterial = keyMaterial
+            });
+            await ctx.Stream.WriteAsync(roomJoined, ctx.CancellationToken);
+
+            var channelInfos = _channels.ListChannels().Select(c =>
+            {
+                var m = c.MemberIds.Select(id => new MemberInfo
+                {
+                    UserId = id,
+                    Username = _auth.GetUsername(id) ?? id.ToString(),
+                    ClientId = _udpRegistry.GetClientId(id) ?? 0,
+                    IsAdmin = _auth.IsAdmin(id)
+                }).ToList();
+                return new ChannelInfo { Id = c.Id, Name = c.Name, MemberIds = c.MemberIds, Members = m };
+            }).ToList();
+            var serverState = ControlProtocol.Serialize(MessageTypes.ServerState, new ServerStatePayload
+            {
+                Channels = channelInfos,
+                CanCreateChannel = _channels.CanCreateMoreChannels
+            });
+            await ctx.Stream.WriteAsync(serverState, ctx.CancellationToken);
+
+            var memberJoined = ControlProtocol.Serialize(MessageTypes.MemberJoined, new MemberPayload
+            {
+                UserId = user.Id,
+                Username = user.Username,
+                ClientId = 0
+            });
+            foreach (var memberId in channel.MemberIds)
+            {
+                if (memberId == user.Id) continue;
+                await ctx.SendToUserAsync(memberId, memberJoined, ctx.CancellationToken);
+            }
+        }
+    }
+
+    public static async Task HandlePingAsync(Stream stream, CancellationToken ct)
+    {
+        var pong = ControlProtocol.Serialize(MessageTypes.Pong, new { });
+        await stream.WriteAsync(pong, ct);
+    }
+}
