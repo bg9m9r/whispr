@@ -155,10 +155,17 @@ jobs:
             echo "TAG_NAME=${{ github.ref_name }}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Download all artifacts
+      - name: Download client artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+          pattern: client-*
+
+      - name: Download server artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: server-*
 
       - name: Flatten artifacts
         run: |
