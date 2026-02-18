@@ -1,27 +1,20 @@
 using Microsoft.EntityFrameworkCore;
 using Whispr.Core.Models;
-using Whispr.Server.Data;
 using Whispr.Server.Repositories;
 
-namespace Whispr.Server.Auth;
+namespace Whispr.Server.Data;
 
 /// <summary>
 /// Entity Framework-backed user store implementing IUserRepository and IPermissionRepository.
 /// </summary>
-public sealed class EfUserStore : IUserRepository, IPermissionRepository
+public sealed class EfUserStore(IDbContextFactory<WhisprDbContext> contextFactory)
+    : IUserRepository, IPermissionRepository
 {
     private const string ChannelAccessPermissionId = "channel_access";
 
-    private readonly IDbContextFactory<WhisprDbContext> _contextFactory;
-
-    public EfUserStore(IDbContextFactory<WhisprDbContext> contextFactory)
-    {
-        _contextFactory = contextFactory;
-    }
-
     public IReadOnlyList<User> LoadAll()
     {
-        using var ctx = _contextFactory.CreateDbContext();
+        using var ctx = contextFactory.CreateDbContext();
         return ctx.Users
             .AsNoTracking()
             .Select(u => new User
@@ -36,21 +29,21 @@ public sealed class EfUserStore : IUserRepository, IPermissionRepository
 
     public User? GetByUsername(string username)
     {
-        using var ctx = _contextFactory.CreateDbContext();
+        using var ctx = contextFactory.CreateDbContext();
         var entity = ctx.Users.AsNoTracking().FirstOrDefault(u => u.Username == username);
         return entity is null ? null : ToUser(entity);
     }
 
     public User? GetById(Guid id)
     {
-        using var ctx = _contextFactory.CreateDbContext();
+        using var ctx = contextFactory.CreateDbContext();
         var entity = ctx.Users.AsNoTracking().FirstOrDefault(u => u.Id == id.ToString());
         return entity is null ? null : ToUser(entity);
     }
 
     public bool Insert(User user)
     {
-        using var ctx = _contextFactory.CreateDbContext();
+        using var ctx = contextFactory.CreateDbContext();
         ctx.Users.Add(new UserEntity
         {
             Id = user.Id.ToString(),
@@ -71,7 +64,7 @@ public sealed class EfUserStore : IUserRepository, IPermissionRepository
 
     public IReadOnlyList<(string Id, string Name, string? Description)> ListPermissions()
     {
-        using var ctx = _contextFactory.CreateDbContext();
+        using var ctx = contextFactory.CreateDbContext();
         return ctx.Permissions.AsNoTracking()
             .ToList()
             .Select(p => (p.Id, p.Name, p.Description))
@@ -80,7 +73,7 @@ public sealed class EfUserStore : IUserRepository, IPermissionRepository
 
     public IReadOnlyList<(string Id, string Name, IReadOnlyList<(string PermissionId, int State)> Permissions)> ListRoles()
     {
-        using var ctx = _contextFactory.CreateDbContext();
+        using var ctx = contextFactory.CreateDbContext();
         var roles = ctx.Roles.AsNoTracking().ToList();
         var rolePerms = ctx.RolePermissions.AsNoTracking().ToList();
         return roles.Select(r => (
@@ -96,7 +89,7 @@ public sealed class EfUserStore : IUserRepository, IPermissionRepository
     public (IReadOnlyList<(string PermissionId, int State)> Permissions, IReadOnlyList<string> RoleIds) GetUserPermissions(Guid userId)
     {
         var uid = userId.ToString();
-        using var ctx = _contextFactory.CreateDbContext();
+        using var ctx = contextFactory.CreateDbContext();
         var perms = ctx.UserPermissions.AsNoTracking()
             .Where(up => up.UserId == uid)
             .ToList()
@@ -112,15 +105,12 @@ public sealed class EfUserStore : IUserRepository, IPermissionRepository
     public bool SetUserPermission(Guid userId, string permissionId, int? state)
     {
         var uid = userId.ToString();
-        using var ctx = _contextFactory.CreateDbContext();
+        using var ctx = contextFactory.CreateDbContext();
         var existing = ctx.UserPermissions.Find(uid, permissionId);
         if (state is null)
         {
-            if (existing is not null)
-            {
-                ctx.UserPermissions.Remove(existing);
-                ctx.SaveChanges();
-            }
+            if (existing is null) return true;
+            ctx.UserPermissions.Remove(existing);
         }
         else
         {
@@ -128,32 +118,29 @@ public sealed class EfUserStore : IUserRepository, IPermissionRepository
                 existing.State = state.Value;
             else
                 ctx.UserPermissions.Add(new UserPermissionEntity { UserId = uid, PermissionId = permissionId, State = state.Value });
-            ctx.SaveChanges();
         }
+
+        ctx.SaveChanges();
         return true;
     }
 
     public bool SetUserRole(Guid userId, string roleId, bool assign)
     {
         var uid = userId.ToString();
-        using var ctx = _contextFactory.CreateDbContext();
+        using var ctx = contextFactory.CreateDbContext();
         if (assign)
         {
-            if (ctx.UserRoles.Find(uid, roleId) is null)
-            {
-                ctx.UserRoles.Add(new UserRoleEntity { UserId = uid, RoleId = roleId });
-                ctx.SaveChanges();
-            }
+            if (ctx.UserRoles.Find(uid, roleId) is not null) return true;
+            ctx.UserRoles.Add(new UserRoleEntity { UserId = uid, RoleId = roleId });
         }
         else
         {
             var existing = ctx.UserRoles.Find(uid, roleId);
-            if (existing is not null)
-            {
-                ctx.UserRoles.Remove(existing);
-                ctx.SaveChanges();
-            }
+            if (existing is null) return true;
+            ctx.UserRoles.Remove(existing);
         }
+
+        ctx.SaveChanges();
         return true;
     }
 
@@ -164,7 +151,7 @@ public sealed class EfUserStore : IUserRepository, IPermissionRepository
         var cid = channelId.ToString();
         var uid = userId.ToString();
 
-        using var ctx = _contextFactory.CreateDbContext();
+        using var ctx = contextFactory.CreateDbContext();
         var hasAny = ctx.ChannelRolePermissions.Any(crp => crp.ChannelId == cid) ||
                      ctx.ChannelUserPermissions.Any(cup => cup.ChannelId == cid);
         if (!hasAny) return true;
@@ -183,14 +170,13 @@ public sealed class EfUserStore : IUserRepository, IPermissionRepository
         }
 
         if (states.Count == 0) return true;
-        if (states.Contains(1)) return false;
-        return states.Contains(0);
+        return !states.Contains(1) && states.Contains(0);
     }
 
     public (IReadOnlyList<(string RoleId, int State)> RoleStates, IReadOnlyList<(Guid UserId, int State)> UserStates) GetChannelPermissions(Guid channelId)
     {
         var cid = channelId.ToString();
-        using var ctx = _contextFactory.CreateDbContext();
+        using var ctx = contextFactory.CreateDbContext();
         var roleStates = ctx.ChannelRolePermissions
             .Where(crp => crp.ChannelId == cid && crp.PermissionId == ChannelAccessPermissionId)
             .ToList()
@@ -207,15 +193,12 @@ public sealed class EfUserStore : IUserRepository, IPermissionRepository
     public bool SetChannelRolePermission(Guid channelId, string roleId, int? state)
     {
         var cid = channelId.ToString();
-        using var ctx = _contextFactory.CreateDbContext();
+        using var ctx = contextFactory.CreateDbContext();
         var existing = ctx.ChannelRolePermissions.Find(cid, roleId, ChannelAccessPermissionId);
         if (state is null)
         {
-            if (existing is not null)
-            {
-                ctx.ChannelRolePermissions.Remove(existing);
-                ctx.SaveChanges();
-            }
+            if (existing is null) return true;
+            ctx.ChannelRolePermissions.Remove(existing);
         }
         else
         {
@@ -229,8 +212,9 @@ public sealed class EfUserStore : IUserRepository, IPermissionRepository
                     PermissionId = ChannelAccessPermissionId,
                     State = state.Value
                 });
-            ctx.SaveChanges();
         }
+
+        ctx.SaveChanges();
         return true;
     }
 
@@ -238,15 +222,12 @@ public sealed class EfUserStore : IUserRepository, IPermissionRepository
     {
         var cid = channelId.ToString();
         var uid = userId.ToString();
-        using var ctx = _contextFactory.CreateDbContext();
+        using var ctx = contextFactory.CreateDbContext();
         var existing = ctx.ChannelUserPermissions.Find(cid, uid, ChannelAccessPermissionId);
         if (state is null)
         {
-            if (existing is not null)
-            {
-                ctx.ChannelUserPermissions.Remove(existing);
-                ctx.SaveChanges();
-            }
+            if (existing is null) return true;
+            ctx.ChannelUserPermissions.Remove(existing);
         }
         else
         {
@@ -260,8 +241,9 @@ public sealed class EfUserStore : IUserRepository, IPermissionRepository
                     PermissionId = ChannelAccessPermissionId,
                     State = state.Value
                 });
-            ctx.SaveChanges();
         }
+
+        ctx.SaveChanges();
         return true;
     }
 

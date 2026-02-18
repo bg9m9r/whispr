@@ -10,20 +10,12 @@ namespace Whispr.Server.Server;
 /// <summary>
 /// TCP/TLS control channel server.
 /// </summary>
-public sealed class ControlServer
+public sealed class ControlServer(ServerOptions options, ControlMessageRouter handler)
 {
-    private readonly int _port;
-    private readonly X509Certificate2 _certificate;
-    private readonly ControlMessageRouter _handler;
+    private readonly int _port = options.ControlPort;
+    private readonly X509Certificate2 _certificate = LoadCertificate(options.CertificatePath, options.CertificatePassword);
     private TcpListener? _listener;
     private CancellationTokenSource? _cts;
-
-    public ControlServer(ServerOptions options, ControlMessageRouter handler)
-    {
-        _port = options.ControlPort;
-        _certificate = LoadCertificate(options.CertificatePath, options.CertificatePassword);
-        _handler = handler;
-    }
 
     private static X509Certificate2 LoadCertificate(string path, string password)
     {
@@ -87,7 +79,7 @@ public sealed class ControlServer
                 if (message is null)
                     break;
 
-                await _handler.HandleAsync(message, stream, state, ct);
+                await handler.HandleAsync(message, stream, state, ct);
             }
         }
         catch (Exception ex)
@@ -99,7 +91,7 @@ public sealed class ControlServer
             if (state.User is not null)
             {
                 ServerLog.Info($"Client disconnected: {state.User.Username}");
-                _handler.OnClientDisconnected(state);
+                handler.OnClientDisconnected(state);
             }
             tcpClient.Dispose();
         }

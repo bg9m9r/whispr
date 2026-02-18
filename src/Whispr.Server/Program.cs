@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Whispr.Server;
-using Whispr.Server.Auth;
 using Whispr.Server.Data;
 using Whispr.Server.Handlers;
 using Whispr.Server.Repositories;
@@ -62,7 +61,7 @@ services.AddSingleton<ControlMessageRouter>();
 services.AddSingleton<ControlServer>();
 services.AddSingleton<AudioRelayServer>();
 
-using var provider = services.BuildServiceProvider();
+await using var provider = services.BuildServiceProvider();
 
 // Admin CLI: add-user <username> <password> [--admin]
 if (args is ["add-user", ..] addUserArgs)

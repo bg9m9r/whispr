@@ -10,28 +10,16 @@ namespace Whispr.Server.Handlers;
 /// Routes control messages to focused handlers.
 /// Owns user control streams and disconnect cleanup.
 /// </summary>
-public sealed class ControlMessageRouter
+public sealed class ControlMessageRouter(
+    IAuthService auth,
+    IChannelService channels,
+    UdpEndpointRegistry udpRegistry)
 {
-    private readonly LoginHandler _loginHandler;
-    private readonly ChannelHandler _channelHandler;
-    private readonly PermissionHandler _permissionHandler;
-    private readonly UdpRegistrationHandler _udpHandler;
-    private readonly IChannelService _channels;
-    private readonly UdpEndpointRegistry _udpRegistry;
+    private readonly LoginHandler _loginHandler = new(auth, channels, udpRegistry);
+    private readonly ChannelHandler _channelHandler = new(auth, channels, udpRegistry);
+    private readonly PermissionHandler _permissionHandler = new(auth);
+    private readonly UdpRegistrationHandler _udpHandler = new(channels, udpRegistry);
     private readonly ConcurrentDictionary<Guid, (Stream Stream, SessionState State)> _userControlStreams = new();
-
-    public ControlMessageRouter(
-        IAuthService auth,
-        IChannelService channels,
-        UdpEndpointRegistry udpRegistry)
-    {
-        _channels = channels;
-        _udpRegistry = udpRegistry;
-        _loginHandler = new LoginHandler(auth, channels, udpRegistry);
-        _channelHandler = new ChannelHandler(auth, channels, udpRegistry);
-        _permissionHandler = new PermissionHandler(auth);
-        _udpHandler = new UdpRegistrationHandler(channels, udpRegistry);
-    }
 
     public void RegisterControlStream(Guid userId, Stream stream, SessionState state)
     {
@@ -47,13 +35,13 @@ public sealed class ControlMessageRouter
     {
         if (state.User is null) return;
 
-        var result = _channels.LeaveChannel(state.User.Id);
+        var result = channels.LeaveChannel(state.User.Id);
         if (result is not null)
         {
             var (_, remainingMembers) = result.Value;
             var clientId = state.ClientId ?? 0;
             if (state.ClientId.HasValue)
-                _udpRegistry.UnregisterByClientId(state.ClientId.Value);
+                udpRegistry.UnregisterByClientId(state.ClientId.Value);
 
             var memberLeft = ControlProtocol.Serialize(MessageTypes.MemberLeft, new MemberPayload
             {

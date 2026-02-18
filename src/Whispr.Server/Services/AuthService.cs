@@ -53,7 +53,7 @@ public sealed class AuthService : IAuthService
         ArgumentException.ThrowIfNullOrWhiteSpace(password);
 
         var user = _userRepo.GetByUsername(username);
-        if (user is null || user.PasswordHash is null)
+        if (user?.PasswordHash is null)
             return null;
 
         return VerifyPassword(password, user.PasswordHash) ? user : null;
@@ -101,12 +101,16 @@ public sealed class AuthService : IAuthService
     {
         if (HasPermissionFromStore(userId, permissionId))
             return true;
-        if (permissionId == "admin")
+        switch (permissionId)
         {
-            var user = _userRepo.GetById(userId);
-            return user?.Role == UserRole.Admin;
+            case "admin":
+            {
+                var user = _userRepo.GetById(userId);
+                return user?.Role == UserRole.Admin;
+            }
+            default:
+                return false;
         }
-        return false;
     }
 
     private bool HasPermissionFromStore(Guid userId, string permissionId)

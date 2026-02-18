@@ -4,21 +4,14 @@ using Whispr.Server.Services;
 
 namespace Whispr.Server.Handlers;
 
-internal sealed class PermissionHandler
+internal sealed class PermissionHandler(IAuthService auth)
 {
-    private readonly IAuthService _auth;
-
-    public PermissionHandler(IAuthService auth)
-    {
-        _auth = auth;
-    }
-
     public async Task HandleListPermissionsAsync(ControlHandlerContext ctx)
     {
         if (!await RequireAdminAsync(ctx))
             return;
 
-        var perms = _auth.ListPermissions();
+        var perms = auth.ListPermissions();
         var payload = new PermissionsListPayload
         {
             Permissions = perms.Select(p => new PermissionInfo { Id = p.Id, Name = p.Name, Description = p.Description }).ToList()
@@ -32,7 +25,7 @@ internal sealed class PermissionHandler
         if (!await RequireAdminAsync(ctx))
             return;
 
-        var roles = _auth.ListRoles();
+        var roles = auth.ListRoles();
         var payload = new RolesListPayload
         {
             Roles = roles.Select(r => new RoleInfo
@@ -61,7 +54,7 @@ internal sealed class PermissionHandler
             await ctx.SendErrorAsync("invalid_payload", "UserId required");
             return;
         }
-        var (perms, roleIds) = _auth.GetUserPermissions(payload.UserId);
+        var (perms, roleIds) = auth.GetUserPermissions(payload.UserId);
         var response = new UserPermissionsPayload
         {
             UserId = payload.UserId,
@@ -94,8 +87,8 @@ internal sealed class PermissionHandler
             "neutral" => 2,
             _ => null
         };
-        _auth.SetUserPermission(payload.UserId, payload.PermissionId, stateVal);
-        var (perms, roleIds) = _auth.GetUserPermissions(payload.UserId);
+        auth.SetUserPermission(payload.UserId, payload.PermissionId, stateVal);
+        var (perms, roleIds) = auth.GetUserPermissions(payload.UserId);
         var response = ControlProtocol.Serialize(MessageTypes.UserPermissions, new UserPermissionsPayload
         {
             UserId = payload.UserId,
@@ -120,8 +113,8 @@ internal sealed class PermissionHandler
             await ctx.SendErrorAsync("invalid_payload", "UserId, RoleId required");
             return;
         }
-        _auth.SetUserRole(payload.UserId, payload.RoleId, payload.Assign);
-        var (perms, roleIds) = _auth.GetUserPermissions(payload.UserId);
+        auth.SetUserRole(payload.UserId, payload.RoleId, payload.Assign);
+        var (perms, roleIds) = auth.GetUserPermissions(payload.UserId);
         var response = ControlProtocol.Serialize(MessageTypes.UserPermissions, new UserPermissionsPayload
         {
             UserId = payload.UserId,
@@ -146,7 +139,7 @@ internal sealed class PermissionHandler
             await ctx.SendErrorAsync("invalid_payload", "ChannelId required");
             return;
         }
-        var (roleStates, userStates) = _auth.GetChannelPermissions(payload.ChannelId);
+        var (roleStates, userStates) = auth.GetChannelPermissions(payload.ChannelId);
         var response = new ChannelPermissionsPayload
         {
             ChannelId = payload.ChannelId,
@@ -183,8 +176,8 @@ internal sealed class PermissionHandler
             "neutral" => 2,
             _ => null
         };
-        _auth.SetChannelRolePermission(payload.ChannelId, payload.RoleId, stateVal);
-        var (roleStates, userStates) = _auth.GetChannelPermissions(payload.ChannelId);
+        auth.SetChannelRolePermission(payload.ChannelId, payload.RoleId, stateVal);
+        var (roleStates, userStates) = auth.GetChannelPermissions(payload.ChannelId);
         var response = ControlProtocol.Serialize(MessageTypes.ChannelPermissions, new ChannelPermissionsPayload
         {
             ChannelId = payload.ChannelId,
@@ -212,8 +205,8 @@ internal sealed class PermissionHandler
             "neutral" => 2,
             _ => null
         };
-        _auth.SetChannelUserPermission(payload.ChannelId, payload.UserId, stateVal);
-        var (roleStates, userStates) = _auth.GetChannelPermissions(payload.ChannelId);
+        auth.SetChannelUserPermission(payload.ChannelId, payload.UserId, stateVal);
+        var (roleStates, userStates) = auth.GetChannelPermissions(payload.ChannelId);
         var response = ControlProtocol.Serialize(MessageTypes.ChannelPermissions, new ChannelPermissionsPayload
         {
             ChannelId = payload.ChannelId,
@@ -230,12 +223,12 @@ internal sealed class PermissionHandler
             await ctx.SendErrorAsync("unauthorized", "Login required");
             return false;
         }
-        if (_auth.ValidateToken(ctx.State.Token) is null)
+        if (auth.ValidateToken(ctx.State.Token) is null)
         {
             await ctx.SendErrorAsync("invalid_token", "Session expired");
             return false;
         }
-        if (!_auth.IsAdmin(ctx.State.User.Id))
+        if (!auth.IsAdmin(ctx.State.User.Id))
         {
             await ctx.SendErrorAsync("forbidden", "Admin required");
             return false;

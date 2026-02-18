@@ -10,27 +10,20 @@ namespace Whispr.Server.Server;
 /// <summary>
 /// UDP audio relay server. Forwards encrypted packets between room members.
 /// </summary>
-public sealed class AudioRelayServer
+public sealed class AudioRelayServer(
+    ServerOptions options,
+    IAuthService auth,
+    IChannelService channels,
+    UdpEndpointRegistry udpRegistry)
 {
     private const int MaxPacketsPerSecondPerClient = 100;
 
-    private readonly int _port;
-    private readonly IAuthService _auth;
-    private readonly IChannelService _channels;
-    private readonly UdpEndpointRegistry _udpRegistry;
+    private readonly int _port = options.AudioPort;
     private readonly ConcurrentDictionary<uint, int> _packetCountByClient = new();
-    private readonly object _rateLimitLock = new();
+    private readonly Lock _rateLimitLock = new();
     private readonly Dictionary<uint, (int Count, long WindowStartMs)> _rateLimitByClient = new();
     private UdpClient? _udpClient;
     private CancellationTokenSource? _cts;
-
-    public AudioRelayServer(ServerOptions options, IAuthService auth, IChannelService channels, UdpEndpointRegistry udpRegistry)
-    {
-        _port = options.AudioPort;
-        _auth = auth;
-        _channels = channels;
-        _udpRegistry = udpRegistry;
-    }
 
     public async Task StartAsync(CancellationToken ct = default)
     {
@@ -70,35 +63,35 @@ public sealed class AudioRelayServer
         if (!TryConsumeRateLimit(clientId))
             return;
 
-        var userId = _udpRegistry.GetUserId(clientId);
+        var userId = udpRegistry.GetUserId(clientId);
         if (userId is null)
             return;
 
-        _udpRegistry.RegisterEndpoint(clientId, remoteEndPoint);
+        udpRegistry.RegisterEndpoint(clientId, remoteEndPoint);
 
-        var channelId = _channels.GetUserChannel(userId.Value);
+        var channelId = channels.GetUserChannel(userId.Value);
         if (channelId is null)
             return;
 
-        var otherMembers = _channels.GetOtherMembers(channelId.Value, userId.Value);
+        var otherMembers = channels.GetOtherMembers(channelId.Value, userId.Value);
         if (otherMembers is null)
             return;
 
         var count = _packetCountByClient.AddOrUpdate(clientId, 1, (_, c) => c + 1);
         if (count == 1)
         {
-            var username = _auth.GetUsername(userId.Value) ?? userId.Value.ToString();
+            var username = auth.GetUsername(userId.Value) ?? userId.Value.ToString();
             ServerLog.Info($"Audio started: {username} (clientId={clientId})");
         }
         else if (count % 50 == 0)
         {
-            var username = _auth.GetUsername(userId.Value) ?? userId.Value.ToString();
+            var username = auth.GetUsername(userId.Value) ?? userId.Value.ToString();
             ServerLog.Info($"Audio: {username} → {otherMembers.Count} recipient(s) ({count} packets)");
         }
 
         foreach (var memberId in otherMembers)
         {
-            var endpoint = _udpRegistry.GetEndpoint(memberId);
+            var endpoint = udpRegistry.GetEndpoint(memberId);
             if (endpoint is null)
                 continue;
 

@@ -13,10 +13,9 @@ namespace Whispr.Server.Server;
 public sealed class ChannelManager : IChannelService
 {
     private const int MaxChannels = 10;
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
     private readonly Dictionary<Guid, ChannelState> _channels = new();
     private readonly Dictionary<Guid, Guid> _userToChannel = new();
-    private readonly Guid _defaultChannelId;
     private readonly IChannelRepository _store;
 
     private sealed class ChannelState
@@ -30,9 +29,9 @@ public sealed class ChannelManager : IChannelService
         _store = store;
         var loaded = _store.LoadAll();
         var defaultCh = loaded.FirstOrDefault(c => c.IsDefault);
-        if (defaultCh.Id == default && loaded.Count > 0)
+        if (defaultCh.Id == Guid.Empty && loaded.Count > 0)
             defaultCh = loaded[0];
-        _defaultChannelId = defaultCh.Id != default ? defaultCh.Id : Guid.NewGuid();
+        DefaultChannelId = defaultCh.Id != Guid.Empty ? defaultCh.Id : Guid.NewGuid();
         foreach (var (id, name, keyMaterial, _) in loaded)
         {
             _channels[id] = new ChannelState
@@ -44,9 +43,9 @@ public sealed class ChannelManager : IChannelService
         if (_channels.Count == 0)
         {
             var keyMaterial = RandomNumberGenerator.GetBytes(32);
-            _channels[_defaultChannelId] = new ChannelState
+            _channels[DefaultChannelId] = new ChannelState
             {
-                Channel = new Channel { Id = _defaultChannelId, Name = "General", MemberIds = [] },
+                Channel = new Channel { Id = DefaultChannelId, Name = "General", MemberIds = [] },
                 KeyMaterial = keyMaterial
             };
         }
@@ -55,14 +54,14 @@ public sealed class ChannelManager : IChannelService
     /// <summary>
     /// Gets the default channel ID (user lands here on connect).
     /// </summary>
-    public Guid DefaultChannelId => _defaultChannelId;
+    public Guid DefaultChannelId { get; }
 
     /// <summary>
     /// Joins the default channel. Called when user connects.
     /// </summary>
     public (Channel Channel, byte[] KeyMaterial)? JoinDefaultChannel(Guid userId)
     {
-        return JoinChannel(_defaultChannelId, userId);
+        return JoinChannel(DefaultChannelId, userId);
     }
 
     /// <summary>
@@ -128,10 +127,8 @@ public sealed class ChannelManager : IChannelService
 
     private (Guid ChannelId, IReadOnlyList<Guid> RemainingMembers)? LeaveChannelInternal(Guid userId)
     {
-        if (!_userToChannel.TryGetValue(userId, out var channelId))
+        if (!_userToChannel.Remove(userId, out var channelId))
             return null;
-
-        _userToChannel.Remove(userId);
 
         if (!_channels.TryGetValue(channelId, out var state))
             return null;
@@ -151,9 +148,9 @@ public sealed class ChannelManager : IChannelService
     {
         lock (_lock)
         {
-            if (!_channels.TryGetValue(channelId, out var state))
-                return null;
-            return state.Channel.MemberIds.Where(m => m != excludeUserId).ToList();
+            return !_channels.TryGetValue(channelId, out var state) 
+                ? null 
+                : state.Channel.MemberIds.Where(m => m != excludeUserId).ToList();
         }
     }
 

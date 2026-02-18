@@ -116,12 +116,9 @@ public static class DbInitializer
     private static void SeedAdminUserRoles(WhisprDbContext ctx)
     {
         var adminUsers = ctx.Users.Where(u => u.Role == 1).Select(u => u.Id).ToList();
-        foreach (var uid in adminUsers)
+        foreach (var uid in adminUsers.Where(uid => !ctx.UserRoles.Any(ur => ur.UserId == uid && ur.RoleId == "admin")))
         {
-            if (!ctx.UserRoles.Any(ur => ur.UserId == uid && ur.RoleId == "admin"))
-            {
-                ctx.UserRoles.Add(new UserRoleEntity { UserId = uid, RoleId = "admin" });
-            }
+            ctx.UserRoles.Add(new UserRoleEntity { UserId = uid, RoleId = "admin" });
         }
         ctx.SaveChanges();
     }

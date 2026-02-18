@@ -5,13 +5,8 @@ namespace Whispr.Server.Data;
 /// <summary>
 /// Entity Framework DbContext for Whispr server data.
 /// </summary>
-public sealed class WhisprDbContext : DbContext
+public sealed class WhisprDbContext(DbContextOptions<WhisprDbContext> options) : DbContext(options)
 {
-    public WhisprDbContext(DbContextOptions<WhisprDbContext> options)
-        : base(options)
-    {
-    }
-
     public DbSet<UserEntity> Users => Set<UserEntity>();
     public DbSet<PermissionEntity> Permissions => Set<PermissionEntity>();
     public DbSet<RoleEntity> Roles => Set<RoleEntity>();

@@ -15,6 +15,7 @@ public sealed class UserEntity
     public string Username { get; set; } = null!;
 
     [Required]
+    [MaxLength(256)]
     public string PasswordHash { get; set; } = null!;
 
     public int Role { get; set; }

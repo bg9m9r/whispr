@@ -5,19 +5,8 @@ using Whispr.Server.Services;
 
 namespace Whispr.Server.Handlers;
 
-internal sealed class ChannelHandler
+internal sealed class ChannelHandler(IAuthService auth, IChannelService channels, UdpEndpointRegistry udpRegistry)
 {
-    private readonly IAuthService _auth;
-    private readonly IChannelService _channels;
-    private readonly UdpEndpointRegistry _udpRegistry;
-
-    public ChannelHandler(IAuthService auth, IChannelService channels, UdpEndpointRegistry udpRegistry)
-    {
-        _auth = auth;
-        _channels = channels;
-        _udpRegistry = udpRegistry;
-    }
-
     public async Task HandleCreateChannelAsync(ControlMessage message, ControlHandlerContext ctx)
     {
         if (!await RequireAuthAsync(ctx))
@@ -31,14 +20,14 @@ internal sealed class ChannelHandler
         }
 
         var user = ctx.State.User!;
-        var channel = _channels.CreateChannel(payload.Name, user.Id);
+        var channel = channels.CreateChannel(payload.Name, user.Id);
         if (channel is null)
         {
             await ctx.SendErrorAsync("create_failed", "Maximum channels (10) reached");
             return;
         }
 
-        var leaveResult = _channels.LeaveChannel(user.Id);
+        var leaveResult = channels.LeaveChannel(user.Id);
         if (leaveResult is not null)
         {
             var (_, remainingMembers) = leaveResult.Value;
@@ -46,7 +35,7 @@ internal sealed class ChannelHandler
             ctx.State.RoomId = null;
             if (ctx.State.ClientId.HasValue)
             {
-                _udpRegistry.UnregisterByClientId(ctx.State.ClientId.Value);
+                udpRegistry.UnregisterByClientId(ctx.State.ClientId.Value);
                 ctx.State.ClientId = null;
             }
             var memberLeft = ControlProtocol.Serialize(MessageTypes.MemberLeft, new MemberPayload
@@ -59,7 +48,7 @@ internal sealed class ChannelHandler
                 await ctx.SendToUserAsync(memberId, memberLeft, ctx.CancellationToken);
         }
 
-        var result = _channels.JoinChannel(channel.Id, user.Id);
+        var result = channels.JoinChannel(channel.Id, user.Id);
         if (result is null)
         {
             await ctx.SendErrorAsync("create_failed", "Could not join new channel");
@@ -73,9 +62,9 @@ internal sealed class ChannelHandler
         var members = joinedChannel.MemberIds.Select(id => new MemberInfo
         {
             UserId = id,
-            Username = _auth.GetUsername(id) ?? id.ToString(),
-            ClientId = _udpRegistry.GetClientId(id) ?? 0,
-            IsAdmin = _auth.IsAdmin(id)
+            Username = auth.GetUsername(id) ?? id.ToString(),
+            ClientId = udpRegistry.GetClientId(id) ?? 0,
+            IsAdmin = auth.IsAdmin(id)
         }).ToList();
         var response = ControlProtocol.Serialize(MessageTypes.RoomJoined, new RoomJoinedPayload
         {
@@ -101,7 +90,7 @@ internal sealed class ChannelHandler
         }
 
         var user = ctx.State.User!;
-        var leaveResult = _channels.LeaveChannel(user.Id);
+        var leaveResult = channels.LeaveChannel(user.Id);
         if (leaveResult is not null)
         {
             var (oldRoomId, remainingMembers) = leaveResult.Value;
@@ -109,7 +98,7 @@ internal sealed class ChannelHandler
             ctx.State.RoomId = null;
             if (ctx.State.ClientId.HasValue)
             {
-                _udpRegistry.UnregisterByClientId(ctx.State.ClientId.Value);
+                udpRegistry.UnregisterByClientId(ctx.State.ClientId.Value);
                 ctx.State.ClientId = null;
             }
             ctx.State.UdpEndpoint = null;
@@ -124,14 +113,14 @@ internal sealed class ChannelHandler
             ServerLog.Info($"Join room: {user.Username} left previous room {oldRoomId}");
         }
 
-        if (!_auth.CanAccessChannel(user.Id, payload.RoomId))
+        if (!auth.CanAccessChannel(user.Id, payload.RoomId))
         {
             ServerLog.Info($"Join room denied: {user.Username} (room {payload.RoomId}) - no channel access");
             await ctx.SendErrorAsync("access_denied", "You do not have permission to access this channel");
             return;
         }
 
-        var result = _channels.JoinChannel(payload.RoomId, user.Id);
+        var result = channels.JoinChannel(payload.RoomId, user.Id);
         if (result is null)
         {
             ServerLog.Info($"Join room failed: {user.Username} (room {payload.RoomId})");
@@ -146,9 +135,9 @@ internal sealed class ChannelHandler
         var members = room.MemberIds.Select(id => new MemberInfo
         {
             UserId = id,
-            Username = _auth.GetUsername(id) ?? id.ToString(),
-            ClientId = _udpRegistry.GetClientId(id) ?? 0,
-            IsAdmin = _auth.IsAdmin(id)
+            Username = auth.GetUsername(id) ?? id.ToString(),
+            ClientId = udpRegistry.GetClientId(id) ?? 0,
+            IsAdmin = auth.IsAdmin(id)
         }).ToList();
         var response = ControlProtocol.Serialize(MessageTypes.RoomJoined, new RoomJoinedPayload
         {
@@ -179,7 +168,7 @@ internal sealed class ChannelHandler
             return;
 
         var user = ctx.State.User!;
-        var result = _channels.LeaveChannel(user.Id);
+        var result = channels.LeaveChannel(user.Id);
         if (result is null)
         {
             await ctx.SendErrorAsync("not_in_room", "You are not in a room");
@@ -191,7 +180,7 @@ internal sealed class ChannelHandler
         ctx.State.RoomId = null;
         if (ctx.State.ClientId.HasValue)
         {
-            _udpRegistry.UnregisterByClientId(ctx.State.ClientId.Value);
+            udpRegistry.UnregisterByClientId(ctx.State.ClientId.Value);
             ctx.State.ClientId = null;
         }
         ctx.State.UdpEndpoint = null;
@@ -218,8 +207,8 @@ internal sealed class ChannelHandler
         if (!await RequireAuthAsync(ctx))
             return;
 
-        var channels = _channels.ListChannels();
-        var rooms = channels.Select(c => new RoomInfo { Id = c.Id, Name = c.Name, MemberCount = c.MemberIds.Count }).ToList();
+        var channels1 = channels.ListChannels();
+        var rooms = channels1.Select(c => new RoomInfo { Id = c.Id, Name = c.Name, MemberCount = c.MemberIds.Count }).ToList();
         var response = ControlProtocol.Serialize(MessageTypes.RoomList, new RoomListPayload { Rooms = rooms });
         await ctx.Stream.WriteAsync(response, ctx.CancellationToken);
     }
@@ -230,23 +219,23 @@ internal sealed class ChannelHandler
             return;
 
         var user = ctx.State.User!;
-        var channels = _channels.ListChannels();
-        var accessibleChannels = channels.Where(c => _auth.CanAccessChannel(user.Id, c.Id)).ToList();
+        var channels1 = channels.ListChannels();
+        var accessibleChannels = channels1.Where(c => auth.CanAccessChannel(user.Id, c.Id)).ToList();
         var channelInfos = accessibleChannels.Select(c =>
         {
             var members = c.MemberIds.Select(id => new MemberInfo
             {
                 UserId = id,
-                Username = _auth.GetUsername(id) ?? id.ToString(),
-                ClientId = _udpRegistry.GetClientId(id) ?? 0,
-                IsAdmin = _auth.IsAdmin(id)
+                Username = auth.GetUsername(id) ?? id.ToString(),
+                ClientId = udpRegistry.GetClientId(id) ?? 0,
+                IsAdmin = auth.IsAdmin(id)
             }).ToList();
             return new ChannelInfo { Id = c.Id, Name = c.Name, MemberIds = c.MemberIds, Members = members };
         }).ToList();
         var response = ControlProtocol.Serialize(MessageTypes.ServerState, new ServerStatePayload
         {
             Channels = channelInfos,
-            CanCreateChannel = _channels.CanCreateMoreChannels
+            CanCreateChannel = channels.CanCreateMoreChannels
         });
         await ctx.Stream.WriteAsync(response, ctx.CancellationToken);
     }
@@ -258,7 +247,7 @@ internal sealed class ChannelHandler
             await ctx.SendErrorAsync("unauthorized", "Login required");
             return false;
         }
-        if (_auth.ValidateToken(ctx.State.Token) is null)
+        if (auth.ValidateToken(ctx.State.Token) is null)
         {
             await ctx.SendErrorAsync("invalid_token", "Session expired");
             return false;

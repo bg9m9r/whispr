@@ -5,19 +5,8 @@ using Whispr.Server.Services;
 
 namespace Whispr.Server.Handlers;
 
-internal sealed class LoginHandler
+internal sealed class LoginHandler(IAuthService auth, IChannelService channels, UdpEndpointRegistry udpRegistry)
 {
-    private readonly IAuthService _auth;
-    private readonly IChannelService _channels;
-    private readonly UdpEndpointRegistry _udpRegistry;
-
-    public LoginHandler(IAuthService auth, IChannelService channels, UdpEndpointRegistry udpRegistry)
-    {
-        _auth = auth;
-        _channels = channels;
-        _udpRegistry = udpRegistry;
-    }
-
     public async Task HandleLoginAsync(ControlMessage message, ControlHandlerContext ctx)
     {
         var payload = ControlProtocol.DeserializePayload<LoginRequestPayload>(message);
@@ -27,7 +16,7 @@ internal sealed class LoginHandler
             return;
         }
 
-        var user = _auth.ValidateOrRegister(payload.Username, payload.Password);
+        var user = auth.ValidateOrRegister(payload.Username, payload.Password);
         if (user is null)
         {
             ServerLog.Info($"Login failed: {payload.Username} (invalid password or registration disabled)");
@@ -41,7 +30,7 @@ internal sealed class LoginHandler
         }
 
         ServerLog.Info($"Login: {user.Username}");
-        var token = _auth.IssueSessionToken(user);
+        var token = auth.IssueSessionToken(user);
         ctx.State.User = user;
         ctx.State.Token = token;
         ctx.State.ControlStream = ctx.Stream;
@@ -55,11 +44,11 @@ internal sealed class LoginHandler
             UserId = user.Id,
             Username = user.Username,
             Role = user.Role.ToString().ToLowerInvariant(),
-            IsAdmin = _auth.IsAdmin(user.Id)
+            IsAdmin = auth.IsAdmin(user.Id)
         });
         await ctx.Stream.WriteAsync(response, ctx.CancellationToken);
 
-        var joinResult = _channels.JoinDefaultChannel(user.Id);
+        var joinResult = channels.JoinDefaultChannel(user.Id);
         if (joinResult is not null)
         {
             var (channel, keyMaterial) = joinResult.Value;
@@ -67,9 +56,9 @@ internal sealed class LoginHandler
             var members = channel.MemberIds.Select(id => new MemberInfo
             {
                 UserId = id,
-                Username = _auth.GetUsername(id) ?? id.ToString(),
-                ClientId = _udpRegistry.GetClientId(id) ?? 0,
-                IsAdmin = _auth.IsAdmin(id)
+                Username = auth.GetUsername(id) ?? id.ToString(),
+                ClientId = udpRegistry.GetClientId(id) ?? 0,
+                IsAdmin = auth.IsAdmin(id)
             }).ToList();
             var roomJoined = ControlProtocol.Serialize(MessageTypes.RoomJoined, new RoomJoinedPayload
             {
@@ -81,21 +70,21 @@ internal sealed class LoginHandler
             });
             await ctx.Stream.WriteAsync(roomJoined, ctx.CancellationToken);
 
-            var channelInfos = _channels.ListChannels().Select(c =>
+            var channelInfos = channels.ListChannels().Select(c =>
             {
                 var m = c.MemberIds.Select(id => new MemberInfo
                 {
                     UserId = id,
-                    Username = _auth.GetUsername(id) ?? id.ToString(),
-                    ClientId = _udpRegistry.GetClientId(id) ?? 0,
-                    IsAdmin = _auth.IsAdmin(id)
+                    Username = auth.GetUsername(id) ?? id.ToString(),
+                    ClientId = udpRegistry.GetClientId(id) ?? 0,
+                    IsAdmin = auth.IsAdmin(id)
                 }).ToList();
                 return new ChannelInfo { Id = c.Id, Name = c.Name, MemberIds = c.MemberIds, Members = m };
             }).ToList();
             var serverState = ControlProtocol.Serialize(MessageTypes.ServerState, new ServerStatePayload
             {
                 Channels = channelInfos,
-                CanCreateChannel = _channels.CanCreateMoreChannels
+                CanCreateChannel = channels.CanCreateMoreChannels
             });
             await ctx.Stream.WriteAsync(serverState, ctx.CancellationToken);
 

@@ -1,24 +1,16 @@
 using Microsoft.EntityFrameworkCore;
-using Whispr.Server.Data;
 using Whispr.Server.Repositories;
 
-namespace Whispr.Server.Server;
+namespace Whispr.Server.Data;
 
 /// <summary>
 /// Entity Framework-backed channel repository.
 /// </summary>
-public sealed class EfChannelRepository : IChannelRepository
+public sealed class EfChannelRepository(IDbContextFactory<WhisprDbContext> contextFactory) : IChannelRepository
 {
-    private readonly IDbContextFactory<WhisprDbContext> _contextFactory;
-
-    public EfChannelRepository(IDbContextFactory<WhisprDbContext> contextFactory)
-    {
-        _contextFactory = contextFactory;
-    }
-
     public IReadOnlyList<(Guid Id, string Name, byte[] KeyMaterial, bool IsDefault)> LoadAll()
     {
-        using var ctx = _contextFactory.CreateDbContext();
+        using var ctx = contextFactory.CreateDbContext();
         return ctx.Channels.AsNoTracking()
             .ToList()
             .Select(c => (Guid.Parse(c.Id), c.Name, c.KeyMaterial, c.IsDefault))
@@ -27,7 +19,7 @@ public sealed class EfChannelRepository : IChannelRepository
 
     public bool Insert(Guid id, string name, byte[] keyMaterial)
     {
-        using var ctx = _contextFactory.CreateDbContext();
+        using var ctx = contextFactory.CreateDbContext();
         ctx.Channels.Add(new ChannelEntity
         {
             Id = id.ToString(),

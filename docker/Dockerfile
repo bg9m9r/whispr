@@ -13,9 +13,6 @@ RUN dotnet publish Whispr.Server/Whispr.Server.csproj \
 FROM mcr.microsoft.com/dotnet/runtime-deps:10.0 AS runtime
 WORKDIR /app
 
-RUN adduser --disabled-password --gecos '' appuser && chown -R appuser /app
-USER appuser
-
 COPY --from=build /app/publish .
 
 EXPOSE 8443
