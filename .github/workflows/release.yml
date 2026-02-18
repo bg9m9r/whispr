@@ -26,7 +26,7 @@ jobs:
             runner: ubuntu-24.04
             archive: tar.gz
           - rid: osx-x64
-            runner: macos-13
+            runner: macos-14
             archive: tar.gz
           - rid: osx-arm64
             runner: macos-14
@@ -41,16 +41,12 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Publish Client
-        run: |
-          dotnet publish src/Whispr.Client/Whispr.Client.csproj \
-            -c Release -r ${{ matrix.rid }} --self-contained \
-            -o publish
+        run: dotnet publish src/Whispr.Client/Whispr.Client.csproj -c Release -r ${{ matrix.rid }} --self-contained -o publish
 
       - name: Archive (Windows)
         if: matrix.archive == 'zip'
         run: |
-          Compress-Archive -Path publish\* -DestinationPath ../whispr-client-${{ matrix.rid }}.zip
-          Move-Item ../whispr-client-${{ matrix.rid }}.zip .
+          Compress-Archive -Path publish\* -DestinationPath whispr-client-${{ matrix.rid }}.zip
 
       - name: Archive (Linux/macOS)
         if: matrix.archive == 'tar.gz'
@@ -85,16 +81,12 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Publish Server
-        run: |
-          dotnet publish src/Whispr.Server/Whispr.Server.csproj \
-            -c Release -r ${{ matrix.rid }} --self-contained \
-            -o publish
+        run: dotnet publish src/Whispr.Server/Whispr.Server.csproj -c Release -r ${{ matrix.rid }} --self-contained -o publish
 
       - name: Archive (Windows)
         if: matrix.archive == 'zip'
         run: |
-          Compress-Archive -Path publish\* -DestinationPath ../whispr-server-${{ matrix.rid }}.zip
-          Move-Item ../whispr-server-${{ matrix.rid }}.zip .
+          Compress-Archive -Path publish\* -DestinationPath whispr-server-${{ matrix.rid }}.zip
 
       - name: Archive (Linux/macOS)
         if: matrix.archive == 'tar.gz'
