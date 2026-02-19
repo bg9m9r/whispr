@@ -17,13 +17,43 @@ Ensure both ports are open in your firewall and reachable by clients.
 
 ## TLS Certificate
 
-The server requires a PFX certificate for the control channel. See **[Certificate Guide](../plans/CERTIFICATE_GUIDE.md)** for:
+The server requires a PFX certificate for the control channel. Set the path in `appsettings.json` (`CertificatePath`) and optionally the password via the `WHISPR_CERT_PASSWORD` environment variable.
 
-- Let's Encrypt (public servers)
-- Custom CA (internal/self-hosted)
-- Development self-signed certs
+### Let's Encrypt (recommended for public servers)
 
-Set the certificate path in `appsettings.json` (`CertificatePath`) and optionally the password via the `WHISPR_CERT_PASSWORD` environment variable.
+Let's Encrypt provides free, trusted certificates. Use Certbot or another ACME client.
+
+**Prerequisites:** A domain pointing to your server (e.g. `voice.example.com`); ports 80 and 443 open (HTTP-01) or DNS access (DNS-01).
+
+```bash
+# Install Certbot (Ubuntu/Debian)
+sudo apt install certbot
+
+# Obtain a certificate (standalone mode – stops any service on port 80)
+sudo certbot certonly --standalone -d voice.example.com
+```
+
+Certificates are stored at `/etc/letsencrypt/live/voice.example.com/`. Whispr needs a PFX file; convert with OpenSSL:
+
+```bash
+sudo openssl pkcs12 -export \
+  -out /path/to/whispr/cert.pfx \
+  -inkey /etc/letsencrypt/live/voice.example.com/privkey.pem \
+  -in /etc/letsencrypt/live/voice.example.com/fullchain.pem \
+  -passout pass:
+```
+
+Use an empty password for convenience, or set `WHISPR_CERT_PASSWORD` for a secure password.
+
+**Auto-renewal:** Let's Encrypt certs expire in 90 days. Add to crontab:
+
+```bash
+0 0 * * * certbot renew --quiet --post-hook "systemctl restart whispr"
+```
+
+Restart the Whispr server after renewal so it loads the new certificate.
+
+For custom CA (internal) or development self-signed certs, see the [Certificate Guide](CERTIFICATE_GUIDE.md).
 
 ---
 
@@ -86,6 +116,35 @@ From the repository root:
 docker build -f docker/Dockerfile -t whispr-server .
 docker run -d -p 8443:8443 -p 8444:8444/udp -v /path/to/cert.pfx:/app/cert.pfx:ro whispr-server
 ```
+
+### Let's Encrypt (using certbot/certbot)
+
+Uses the official [certbot/certbot](https://hub.docker.com/r/certbot/certbot) image. Requires port 80 for the ACME challenge.
+
+**Prerequisites:** A domain pointing to your server (e.g. `voice.example.com`); ports 80, 8443, and 8444 open.
+
+Create a `.env` file (or export the variables):
+
+```
+CERTBOT_DOMAIN=voice.example.com
+CERTBOT_EMAIL=admin@example.com
+```
+
+Then from the repo root:
+
+```bash
+docker compose -f docker/docker-compose.letsencrypt.yml up -d
+```
+
+On first run, the certbot container obtains a certificate, converts it to PFX, and exits. Whispr then starts using the cert. To use a pre-built image instead of building from source, set `image: ghcr.io/owner/whispr:v1.0.0` in the compose file and remove the `build:` section.
+
+**Renewal:** Let's Encrypt certs expire in 90 days. Add to crontab (ensure `.env` exists with `CERTBOT_DOMAIN` and `CERTBOT_EMAIL`):
+
+```bash
+0 0 * * * /path/to/whispr/docker/renew-certs.sh
+```
+
+Or run manually: `./docker/renew-certs.sh`
 
 ---
 
@@ -175,4 +234,4 @@ When using the published binary:
 ./Whispr.Server add-user myuser mypassword
 ```
 
-See the main [README](../README.md) and [ACL schema](../plans/ACL_SCHEMA.md) for roles and permissions.
+See the main [README](../README.md) for more on the server.

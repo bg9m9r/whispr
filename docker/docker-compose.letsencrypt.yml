@@ -1,0 +1,56 @@
+# Let's Encrypt setup using the official certbot/certbot image.
+# Run: CERTBOT_DOMAIN=voice.example.com CERTBOT_EMAIL=admin@example.com docker compose -f docker/docker-compose.letsencrypt.yml up -d
+# For renewal: run the certbot service periodically or add a cron job (see docs/SERVER_SETUP.md).
+
+services:
+  certbot:
+    image: certbot/certbot
+    container_name: whispr-certbot
+    volumes:
+      - whispr-letsencrypt:/etc/letsencrypt
+      - whispr-certs:/certs
+    environment:
+      - CERTBOT_DOMAIN=${CERTBOT_DOMAIN}
+      - CERTBOT_EMAIL=${CERTBOT_EMAIL}
+    entrypoint: /bin/sh -c
+    command:
+      - |
+        if [ ! -f /etc/letsencrypt/live/$${CERTBOT_DOMAIN}/fullchain.pem ]; then
+          certbot certonly --standalone -d $${CERTBOT_DOMAIN} --email $${CERTBOT_EMAIL} --agree-tos --non-interactive
+        else
+          certbot renew --quiet --standalone
+        fi
+        openssl pkcs12 -export -out /certs/cert.pfx \
+          -inkey /etc/letsencrypt/live/$${CERTBOT_DOMAIN}/privkey.pem \
+          -in /etc/letsencrypt/live/$${CERTBOT_DOMAIN}/fullchain.pem \
+          -passout pass:
+        echo "Certificate ready at /certs/cert.pfx"
+    ports:
+      - "80:80"
+    restart: "no"
+
+  whispr:
+    image: ghcr.io/owner/whispr:latest
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: whispr
+    ports:
+      - "8443:8443"
+      - "8444:8444/udp"
+    volumes:
+      - whispr-certs:/app/certs:ro
+      - whispr-data:/app/data
+    environment:
+      - CertificatePath=/app/certs/cert.pfx
+      - DatabasePath=/app/data/whispr.db
+      - WHISPR_CERT_PASSWORD=
+    restart: unless-stopped
+    depends_on:
+      certbot:
+        condition: service_completed_successfully
+
+volumes:
+  whispr-letsencrypt:
+  whispr-certs:
+  whispr-data:
