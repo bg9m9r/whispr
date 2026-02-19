@@ -19,15 +19,32 @@ internal sealed class LoginHandler(IAuthService auth, IChannelService channels, 
             await ctx.SendErrorAsync("invalid_payload", "Login payload required");
             return;
         }
+        if (!PayloadValidation.IsValidUsername(payload.Username, out var usernameError))
+        {
+            await ctx.SendErrorAsync("invalid_payload", usernameError!);
+            return;
+        }
 
         var user = auth.ValidateOrRegister(payload.Username, payload.Password);
         if (user is null)
         {
-            ServerLog.Info($"Login failed: {payload.Username} (invalid password or registration disabled)");
+            ServerLog.Warn($"Login failed: invalid credentials for user '{payload.Username}'");
             var bytes = ControlProtocol.Serialize(MessageTypes.LoginResponse, new LoginResponsePayload
             {
                 Success = false,
                 Error = "Invalid credentials"
+            });
+            await ctx.Stream.WriteAsync(bytes, ctx.CancellationToken);
+            return;
+        }
+
+        if (ctx.IsUserConnected(user.Id))
+        {
+            ServerLog.Info($"Login rejected (already connected): {user.Username}");
+            var bytes = ControlProtocol.Serialize(MessageTypes.LoginResponse, new LoginResponsePayload
+            {
+                Success = false,
+                Error = "Already logged in from another session"
             });
             await ctx.Stream.WriteAsync(bytes, ctx.CancellationToken);
             return;

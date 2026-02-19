@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using Whispr.Core.Models;
 using Whispr.Server.Repositories;
+using Whispr.Server.Handlers;
 
 namespace Whispr.Server.Services;
 
@@ -13,22 +14,22 @@ public sealed class AuthService : IAuthService
 {
     private readonly IUserRepository _userRepo;
     private readonly IPermissionRepository _permissionRepo;
+    private readonly ServerOptions? _options;
     private readonly ConcurrentDictionary<string, (User User, DateTime IssuedAt)> _sessions = new();
 
     private const int SaltSize = 16;
     private const int HashSize = 32;
     private const int Iterations = 100_000;
 
-    /// <summary>
-    /// Token lifetime. Tokens expire after this duration.
-    /// </summary>
-    private static readonly TimeSpan TokenLifetime = TimeSpan.FromHours(24);
+    private TimeSpan TokenLifetime => TimeSpan.FromHours(_options?.TokenLifetimeHours ?? 24);
 
-    public AuthService(IUserRepository userRepo, IPermissionRepository permissionRepo)
+    public AuthService(IUserRepository userRepo, IPermissionRepository permissionRepo, ServerOptions? options = null)
     {
         _userRepo = userRepo;
         _permissionRepo = permissionRepo;
-        SeedTestUsersIfEmpty();
+        _options = options;
+        if (options?.SeedTestUsers == true)
+            SeedTestUsersIfEmpty();
     }
 
     private void SeedTestUsersIfEmpty()
@@ -152,6 +153,9 @@ public sealed class AuthService : IAuthService
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(username);
         ArgumentException.ThrowIfNullOrWhiteSpace(password);
+
+        if (!PayloadValidation.IsValidUsername(username.Trim(), out _))
+            return false;
 
         if (_userRepo.GetByUsername(username) is not null)
             return false;

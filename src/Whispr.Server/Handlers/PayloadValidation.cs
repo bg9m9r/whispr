@@ -7,6 +7,24 @@ public static class PayloadValidation
 {
     public const int MaxChannelNameLength = 256;
     public const int MaxMessageContentLength = 4096;
+    public const int MaxUsernameLength = 64;
+
+    public static bool IsValidUsername(string? username, out string? error)
+    {
+        error = null;
+        if (string.IsNullOrWhiteSpace(username))
+        {
+            error = "Username is required";
+            return false;
+        }
+        var trimmed = username.Trim();
+        if (trimmed.Length > MaxUsernameLength)
+        {
+            error = $"Username must be at most {MaxUsernameLength} characters";
+            return false;
+        }
+        return true;
+    }
 
     public static bool IsValidChannelName(string? name, out string? error)
     {
@@ -61,5 +79,20 @@ public static class PayloadValidation
             return false;
         }
         return true;
+    }
+
+    /// <summary>
+    /// Strips control characters from message content (keeps newline, tab, carriage return).
+    /// </summary>
+    public static string SanitizeMessageContent(string content)
+    {
+        if (string.IsNullOrEmpty(content)) return content;
+        var sb = new System.Text.StringBuilder(content.Length);
+        foreach (var c in content)
+        {
+            if (c == '\n' || c == '\r' || c == '\t' || (c >= 0x20 && c != 0x7F))
+                sb.Append(c);
+        }
+        return sb.ToString();
     }
 }

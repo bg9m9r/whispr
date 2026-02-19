@@ -151,15 +151,6 @@ public sealed class AuthService : IAuthService
         return payload?.Rooms ?? [];
     }
 
-    /// <summary>
-    /// Registers the UDP client ID with the server (call after joining a room).
-    /// </summary>
-    public async Task RegisterUdpAsync(uint clientId, CancellationToken ct = default)
-    {
-        RequireAuth();
-        await _connection.SendAsync(MessageTypes.RegisterUdp, new RegisterUdpPayload { ClientId = clientId }, ct);
-    }
-
     private void RequireAuth()
     {
         if (_token is null)

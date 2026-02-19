@@ -52,6 +52,8 @@ public sealed class FakeChannelService : IChannelService
 
     public void Stop() { }
 
+    public Task<uint> RegisterUdpAsync(CancellationToken ct = default) => Task.FromResult((uint)1);
+
     public Task RequestServerStateAsync() => Task.CompletedTask;
 
     public Task<ChannelJoinedResult?> SwitchToChannelAsync(Guid channelId) =>

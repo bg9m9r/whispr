@@ -16,5 +16,4 @@ public interface IAuthService
     Task<LoginResult> LoginAsync(string username, string password, CancellationToken ct = default);
     Task<(ChannelJoinedResult ChannelJoined, ServerStatePayload ServerState)?> ReadInitialServerStateAsync(CancellationToken ct = default);
     Task SendLeaveRoomAsync(CancellationToken ct = default);
-    Task RegisterUdpAsync(uint clientId, CancellationToken ct = default);
 }

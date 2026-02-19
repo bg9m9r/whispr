@@ -68,6 +68,10 @@ public sealed class ConnectionService : IDisposable
         catch (OperationCanceledException) { }
     }
 
+    /// <summary>
+    /// Accepts any certificate. SECURITY: Use only when user explicitly confirms despite validation failure.
+    /// Disables certificate revocation checks. Never use for production or automated connections.
+    /// </summary>
     private static readonly RemoteCertificateValidationCallback AcceptAnyCertValidator =
         (_, _, _, _) => true;
 

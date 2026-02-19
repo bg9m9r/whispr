@@ -13,7 +13,7 @@ public sealed class ControlMessageRouterTests
 {
     private static ControlMessageRouter CreateRouter()
     {
-        var auth = new AuthService(new InMemoryUserRepository(), new InMemoryPermissionRepository());
+        var auth = new AuthService(new InMemoryUserRepository(), new InMemoryPermissionRepository(), new ServerOptions { SeedTestUsers = true });
         var channels = new ChannelManager(new InMemoryChannelRepository());
         var messages = new MessageService(new InMemoryMessageRepository(), auth);
         var udpRegistry = new UdpEndpointRegistry();
@@ -148,7 +148,7 @@ public sealed class ControlMessageRouterTests
     [Fact]
     public void OnClientDisconnected_RemovesUserFromChannel()
     {
-        var auth = new AuthService(new InMemoryUserRepository(), new InMemoryPermissionRepository());
+        var auth = new AuthService(new InMemoryUserRepository(), new InMemoryPermissionRepository(), new ServerOptions { SeedTestUsers = true });
         var channels = new ChannelManager(new InMemoryChannelRepository());
         var messages = new MessageService(new InMemoryMessageRepository(), auth);
         var udpRegistry = new UdpEndpointRegistry();

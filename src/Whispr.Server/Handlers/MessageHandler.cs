@@ -38,7 +38,7 @@ internal sealed class MessageHandler(IAuthService auth, IMessageService messages
             await ctx.SendErrorAsync("invalid_payload", channelError!);
             return;
         }
-        var content = (payload.Content ?? "").Trim();
+        var content = PayloadValidation.SanitizeMessageContent((payload.Content ?? "").Trim());
         if (!PayloadValidation.IsValidMessageContent(content, out var contentError))
         {
             await ctx.SendErrorAsync("invalid_payload", contentError!);

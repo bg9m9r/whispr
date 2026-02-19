@@ -10,6 +10,9 @@ public static class ServerLog
     public static void Info(string message) =>
         Console.WriteLine($"[{Timestamp}] {message}");
 
+    public static void Warn(string message) =>
+        Console.WriteLine($"[{Timestamp}] WARN: {message}");
+
     public static void Error(string message) =>
         Console.WriteLine($"[{Timestamp}] ERROR: {message}");
 }

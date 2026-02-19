@@ -11,6 +11,7 @@ public static class MessageTypes
     public const string JoinRoom = "join_room";
     public const string LeaveRoom = "leave_room";
     public const string RegisterUdp = "register_udp";
+    public const string RegisterUdpResponse = "register_udp_response";
     public const string RequestRoomList = "request_room_list";
     public const string RequestServerState = "request_server_state";
     public const string CreateChannel = "create_channel";

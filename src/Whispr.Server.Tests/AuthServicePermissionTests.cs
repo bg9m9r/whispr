@@ -11,7 +11,7 @@ public sealed class AuthServicePermissionTests
     private static AuthService CreateAuthServiceWithFakePermissions(FakePermissionRepository fakePerm)
     {
         var userRepo = new InMemoryUserRepository();
-        return new AuthService(userRepo, fakePerm);
+        return new AuthService(userRepo, fakePerm, new ServerOptions { SeedTestUsers = true });
     }
 
     [Fact]

@@ -273,8 +273,7 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
 
         try
         {
-            var clientId = (uint)Random.Shared.Next(1, int.MaxValue);
-            await _auth.RegisterUdpAsync(clientId);
+            var clientId = await _channelService.RegisterUdpAsync();
 
             _audioService = new AudioService();
             _audioService.OnFrameReceived += cid => _lastSpeakingByClientId[cid] = Environment.TickCount64;

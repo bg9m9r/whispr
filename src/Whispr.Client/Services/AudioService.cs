@@ -276,7 +276,7 @@ public sealed class AudioService : IDisposable
         if (encodedLen <= 0) return;
 
         var nonce = new byte[12];
-        Random.Shared.NextBytes(nonce);
+        System.Security.Cryptography.RandomNumberGenerator.Fill(nonce);
         var ciphertext = AudioEncryption.EncryptWithNonce(_audioKey, nonce, opusBuffer.AsSpan(0, encodedLen));
         var packet = AudioProtocol.BuildPacket(clientId, nonce, ciphertext);
 
@@ -558,7 +558,7 @@ public sealed class AudioService : IDisposable
         if (encodedLen <= 0) return;
 
         var nonce = new byte[12];
-        Random.Shared.NextBytes(nonce);
+        System.Security.Cryptography.RandomNumberGenerator.Fill(nonce);
         var ciphertext = AudioEncryption.EncryptWithNonce(_audioKey, nonce, opusBuffer.AsSpan(0, encodedLen));
         var packet = AudioProtocol.BuildPacket(clientId, nonce, ciphertext);
 

@@ -22,8 +22,6 @@ public sealed class FakeAuthService : IAuthService
 
     public Task SendLeaveRoomAsync(CancellationToken ct = default) => Task.CompletedTask;
 
-    public Task RegisterUdpAsync(uint clientId, CancellationToken ct = default) => Task.CompletedTask;
-
     /// <summary>
     /// Configures the fake as a logged-in user.
     /// </summary>

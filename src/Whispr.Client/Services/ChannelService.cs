@@ -22,6 +22,7 @@ public sealed class ChannelService : IChannelService
     private TaskCompletionSource<bool>? _pendingRoomLeftTcs;
     private TaskCompletionSource<ChannelJoinedResult?>? _pendingRoomJoinedTcs;
     private TaskCompletionSource<object?>? _pendingPermissionResponseTcs;
+    private TaskCompletionSource<uint>? _pendingRegisterUdpTcs;
     private bool _disposed;
     private int? _pingLatencyMs;
     private DateTime _pendingPingSentAt;
@@ -161,6 +162,16 @@ public sealed class ChannelService : IChannelService
             }
         }
         catch (OperationCanceledException) { }
+    }
+
+    /// <summary>
+    /// Registers UDP with server; server assigns and returns client ID.
+    /// </summary>
+    public async Task<uint> RegisterUdpAsync(CancellationToken ct = default)
+    {
+        _pendingRegisterUdpTcs = new TaskCompletionSource<uint>();
+        await _connection.SendAsync(MessageTypes.RegisterUdp, new object(), ct);
+        return await _pendingRegisterUdpTcs.Task.WaitAsync(ct);
     }
 
     /// <summary>
@@ -333,6 +344,12 @@ public sealed class ChannelService : IChannelService
                             _ = RequestServerStateAsync();
                         }
                         break;
+                    case MessageTypes.RegisterUdpResponse:
+                        var regResp = ControlProtocol.DeserializePayload<RegisterUdpResponsePayload>(msg);
+                        if (regResp is not null && regResp.ClientId != 0)
+                            _pendingRegisterUdpTcs?.TrySetResult(regResp.ClientId);
+                        _pendingRegisterUdpTcs = null;
+                        break;
                     case MessageTypes.MemberUdpRegistered:
                         var registered = ControlProtocol.DeserializePayload<MemberPayload>(msg);
                         if (registered is not null && registered.ClientId != 0)
@@ -412,6 +429,7 @@ public sealed class ChannelService : IChannelService
                         _pendingRoomJoinedTcs?.TrySetResult(null);
                         _pendingRoomLeftTcs?.TrySetResult(false);
                         _pendingPermissionResponseTcs?.TrySetResult(null);
+                        _pendingRegisterUdpTcs?.TrySetException(new InvalidOperationException(err?.Message ?? "Server error"));
                         ClientLog.Info($"Server error: {err?.Message}");
                         break;
                     case MessageTypes.PermissionsList:

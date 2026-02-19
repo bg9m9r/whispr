@@ -23,6 +23,7 @@ public interface IChannelService : IDisposable
     void Start(ChannelJoinedResult roomResult, ServerStatePayload serverState);
     void Stop();
 
+    Task<uint> RegisterUdpAsync(CancellationToken ct = default);
     Task RequestServerStateAsync();
     Task<ChannelJoinedResult?> SwitchToChannelAsync(Guid channelId);
     Task<ChannelJoinedResult?> CreateChannelAsync(string name);

@@ -222,16 +222,42 @@ Allow outbound for any HTTPS/DNS the server needs (e.g. certificate revocation c
 
 ## User management
 
-The server persists users in a SQLite database. To add a user from the command line (when run from the project directory):
+The server persists users in a SQLite database. **Production deployments must create an admin user** before first use; the server does not seed default credentials in production.
+
+To add a user from the command line (when run from the project directory):
 
 ```bash
 dotnet run --project src/Whispr.Server -- add-user myuser mypassword
+```
+
+To add an **admin** user (required for production):
+
+```bash
+dotnet run --project src/Whispr.Server -- add-user admin mypassword --admin
 ```
 
 When using the published binary:
 
 ```bash
 ./Whispr.Server add-user myuser mypassword
+./Whispr.Server add-user admin mypassword --admin
 ```
+
+For development only, you can enable `SeedTestUsers: true` in `appsettings.json` to auto-seed `admin/admin` and `bob/bob` when the user store is empty. **Do not use in production.**
+
+---
+
+## Configuration
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `ControlPort` | 8443 | TCP port for control channel (TLS) |
+| `AudioPort` | 8444 | UDP port for audio relay |
+| `CertificatePath` | cert.pfx | Path to PFX certificate |
+| `DatabasePath` | whispr.db | SQLite database path |
+| `SeedTestUsers` | false | Seed test users when empty (dev only) |
+| `TokenLifetimeHours` | 24 | Session token expiry in hours |
+
+The server allows one concurrent session per user. A second login from the same user is rejected with "Already logged in from another session" until the first session disconnects.
 
 See the main [README](../README.md) for more on the server.

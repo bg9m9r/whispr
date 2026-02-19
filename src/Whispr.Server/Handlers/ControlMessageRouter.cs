@@ -51,6 +51,9 @@ public sealed class ControlMessageRouter(
     {
         if (state.User is null) return;
 
+        if (!string.IsNullOrEmpty(state.Token))
+            auth.RevokeToken(state.Token);
+
         var result = channels.LeaveChannel(state.User.Id);
         if (result is not null)
         {
@@ -108,7 +111,8 @@ public sealed class ControlMessageRouter(
             CancellationToken = ct,
             SendToUserAsync = (userId, msg, c) => SendToUserAsync(userId, msg, c),
             SendToChannelAsync = (chId, msg, excl, c) => SendToChannelAsync(chId, msg, excl, c),
-            RegisterControlStream = (userId, s, st) => RegisterControlStream(userId, s, st)
+            RegisterControlStream = (userId, s, st) => RegisterControlStream(userId, s, st),
+            IsUserConnected = userId => _userControlStreams.ContainsKey(userId)
         };
 
         if (!state.TryConsumeRateLimit())

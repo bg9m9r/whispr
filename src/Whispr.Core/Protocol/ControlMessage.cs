@@ -166,12 +166,21 @@ public sealed class RoomJoinedPayload
 }
 
 /// <summary>
-/// Strongly-typed payload for register UDP.
+/// Strongly-typed payload for register UDP (legacy; client no longer sends clientId).
 /// </summary>
 public sealed class RegisterUdpPayload
 {
     [JsonPropertyName("clientId")]
-    public required uint ClientId { get; init; }
+    public uint ClientId { get; init; }
+}
+
+/// <summary>
+/// Server response for register UDP with assigned client ID.
+/// </summary>
+public sealed class RegisterUdpResponsePayload
+{
+    [JsonPropertyName("clientId")]
+    public uint ClientId { get; init; }
 }
 
 /// <summary>

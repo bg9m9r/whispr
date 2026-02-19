@@ -11,7 +11,7 @@ public sealed class AuthServiceTests
     {
         var userRepo = new InMemoryUserRepository();
         var permRepo = new InMemoryPermissionRepository();
-        return new AuthService(userRepo, permRepo);
+        return new AuthService(userRepo, permRepo, new ServerOptions { SeedTestUsers = true });
     }
 
     [Fact]

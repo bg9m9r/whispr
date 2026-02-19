@@ -25,7 +25,9 @@ if (certPassword is not null)
         AudioPort = options.AudioPort,
         CertificatePath = options.CertificatePath,
         CertificatePassword = certPassword,
-        DatabasePath = options.DatabasePath
+        DatabasePath = options.DatabasePath,
+        SeedTestUsers = options.SeedTestUsers,
+        TokenLifetimeHours = options.TokenLifetimeHours
     };
 
 // Ensure database schema exists and seed defaults
@@ -56,7 +58,10 @@ else
 }
 
 // Services
-services.AddSingleton<IAuthService, AuthService>();
+services.AddSingleton<IAuthService>(sp => new AuthService(
+    sp.GetRequiredService<IUserRepository>(),
+    sp.GetRequiredService<IPermissionRepository>(),
+    options));
 services.AddSingleton<IChannelService, ChannelManager>();
 services.AddSingleton<IMessageService, MessageService>();
 services.AddSingleton<UdpEndpointRegistry>();

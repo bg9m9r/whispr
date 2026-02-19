@@ -111,6 +111,12 @@ internal sealed class PermissionHandler(IAuthService auth) : IControlMessageHand
             await ctx.SendErrorAsync("invalid_payload", "UserId, PermissionId required");
             return;
         }
+        var knownPermIds = auth.ListPermissions().Select(p => p.Id).ToHashSet();
+        if (!knownPermIds.Contains(payload.PermissionId))
+        {
+            await ctx.SendErrorAsync("invalid_payload", $"Unknown permission: {payload.PermissionId}");
+            return;
+        }
         int? stateVal = payload.State?.ToLowerInvariant() switch
         {
             "allow" => 0,
@@ -142,6 +148,12 @@ internal sealed class PermissionHandler(IAuthService auth) : IControlMessageHand
         if (payload is null)
         {
             await ctx.SendErrorAsync("invalid_payload", "UserId, RoleId required");
+            return;
+        }
+        var knownRoleIds = auth.ListRoles().Select(r => r.Id).ToHashSet();
+        if (!knownRoleIds.Contains(payload.RoleId))
+        {
+            await ctx.SendErrorAsync("invalid_payload", $"Unknown role: {payload.RoleId}");
             return;
         }
         auth.SetUserRole(payload.UserId, payload.RoleId, payload.Assign);
@@ -198,6 +210,12 @@ internal sealed class PermissionHandler(IAuthService auth) : IControlMessageHand
         if (payload is null)
         {
             await ctx.SendErrorAsync("invalid_payload", "ChannelId, RoleId required");
+            return;
+        }
+        var knownRoleIds = auth.ListRoles().Select(r => r.Id).ToHashSet();
+        if (!knownRoleIds.Contains(payload.RoleId))
+        {
+            await ctx.SendErrorAsync("invalid_payload", $"Unknown role: {payload.RoleId}");
             return;
         }
         int? stateVal = payload.State?.ToLowerInvariant() switch

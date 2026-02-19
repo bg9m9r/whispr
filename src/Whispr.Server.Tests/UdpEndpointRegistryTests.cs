@@ -7,12 +7,21 @@ namespace Whispr.Server.Tests;
 public sealed class UdpEndpointRegistryTests
 {
     [Fact]
-    public void RegisterClientId_AndGetClientId_ReturnsId()
+    public void AssignClientId_AndGetClientId_ReturnsId()
     {
         var registry = new UdpEndpointRegistry();
         var userId = Guid.NewGuid();
-        registry.RegisterClientId(42, userId);
-        Assert.Equal(42u, registry.GetClientId(userId));
+        var clientId = registry.AssignClientId(userId);
+        Assert.Equal(clientId, registry.GetClientId(userId));
+    }
+
+    [Fact]
+    public void AssignClientId_AssignsUniqueIds()
+    {
+        var registry = new UdpEndpointRegistry();
+        var id1 = registry.AssignClientId(Guid.NewGuid());
+        var id2 = registry.AssignClientId(Guid.NewGuid());
+        Assert.NotEqual(id1, id2);
     }
 
     [Fact]
@@ -27,8 +36,8 @@ public sealed class UdpEndpointRegistryTests
     {
         var registry = new UdpEndpointRegistry();
         var userId = Guid.NewGuid();
-        registry.RegisterClientId(42, userId);
-        Assert.Equal(userId, registry.GetUserId(42));
+        var clientId = registry.AssignClientId(userId);
+        Assert.Equal(userId, registry.GetUserId(clientId));
     }
 
     [Fact]
@@ -36,9 +45,9 @@ public sealed class UdpEndpointRegistryTests
     {
         var registry = new UdpEndpointRegistry();
         var userId = Guid.NewGuid();
-        registry.RegisterClientId(42, userId);
+        var clientId = registry.AssignClientId(userId);
         var endpoint = new IPEndPoint(IPAddress.Loopback, 12345);
-        registry.RegisterEndpoint(42, endpoint);
+        registry.RegisterEndpoint(clientId, endpoint);
         Assert.Equal(endpoint, registry.GetEndpoint(userId));
     }
 
@@ -47,10 +56,10 @@ public sealed class UdpEndpointRegistryTests
     {
         var registry = new UdpEndpointRegistry();
         var userId = Guid.NewGuid();
-        registry.RegisterClientId(42, userId);
-        registry.UnregisterByClientId(42);
+        var clientId = registry.AssignClientId(userId);
+        registry.UnregisterByClientId(clientId);
         Assert.Null(registry.GetClientId(userId));
-        Assert.Null(registry.GetUserId(42));
+        Assert.Null(registry.GetUserId(clientId));
     }
 
     [Fact]
@@ -58,12 +67,12 @@ public sealed class UdpEndpointRegistryTests
     {
         var registry = new UdpEndpointRegistry();
         var userId = Guid.NewGuid();
-        registry.RegisterClientId(42, userId);
+        var clientId = registry.AssignClientId(userId);
         var endpoint = new IPEndPoint(IPAddress.Loopback, 12345);
-        registry.RegisterEndpoint(42, endpoint);
+        registry.RegisterEndpoint(clientId, endpoint);
         registry.Unregister(userId);
         Assert.Null(registry.GetClientId(userId));
-        Assert.Null(registry.GetUserId(42));
+        Assert.Null(registry.GetUserId(clientId));
         Assert.Null(registry.GetEndpoint(userId));
     }
 }

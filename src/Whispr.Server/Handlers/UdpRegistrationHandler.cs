@@ -16,22 +16,14 @@ internal sealed class UdpRegistrationHandler(IAuthService auth, UdpEndpointRegis
         if (!await HandlerAuthHelper.RequireAuthAsync(auth, ctx))
             return;
 
-        var payload = ControlProtocol.DeserializePayload<RegisterUdpPayload>(message);
-        if (payload is null)
-        {
-            await ctx.SendErrorAsync("invalid_payload", "RegisterUdp payload required");
-            return;
-        }
-        if (!PayloadValidation.IsValidClientId(payload.ClientId, out var clientError))
-        {
-            await ctx.SendErrorAsync("invalid_payload", clientError!);
-            return;
-        }
-
         var user = ctx.State.User!;
-        ctx.State.ClientId = payload.ClientId;
-        udpRegistry.RegisterClientId(payload.ClientId, user.Id);
-        ServerLog.Info($"UDP registered: {user.Username} (clientId={payload.ClientId})");
+        var clientId = udpRegistry.AssignClientId(user.Id);
+        ctx.State.ClientId = clientId;
+
+        var response = ControlProtocol.Serialize(MessageTypes.RegisterUdpResponse, new RegisterUdpResponsePayload { ClientId = clientId });
+        await ctx.Stream.WriteAsync(response, ctx.CancellationToken);
+
+        ServerLog.Info($"UDP registered: {user.Username} (clientId={clientId})");
 
         if (ctx.State.RoomId is { } roomId)
         {
@@ -39,7 +31,7 @@ internal sealed class UdpRegistrationHandler(IAuthService auth, UdpEndpointRegis
             {
                 UserId = user.Id,
                 Username = user.Username,
-                ClientId = payload.ClientId
+                ClientId = clientId
             });
             await ctx.SendToChannelAsync(roomId, msg, user.Id, ctx.CancellationToken);
         }
