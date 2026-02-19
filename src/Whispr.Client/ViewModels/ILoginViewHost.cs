@@ -11,7 +11,9 @@ public interface ILoginViewHost
 {
     void ShowChannelView(ConnectionService connection, AuthService auth, ChannelJoinedResult channelJoined, ServerStatePayload serverState, string host);
     void Close();
-    Task<bool> ShowUntrustedCertWarningAsync(string host, int port);
-    Task<bool> ShowUnverifiedCertRetryDialogAsync(string host, int port);
+    /// <summary>Returns (user confirmed continue, user checked "Save my decision").</summary>
+    Task<(bool confirmed, bool saveDecision)> ShowUntrustedCertWarningAsync(string host, int port);
+    /// <summary>Returns (user confirmed connect anyway, user checked "Save my decision").</summary>
+    Task<(bool confirmed, bool saveDecision)> ShowUnverifiedCertRetryDialogAsync(string host, int port);
     Task ShowErrorAsync(string message);
 }

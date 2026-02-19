@@ -57,6 +57,31 @@ For custom CA (internal) or development self-signed certs, see the [Certificate 
 
 ---
 
+## Message encryption (database)
+
+When using a database (`DatabasePath` set), the server requires **WHISPR_MESSAGE_ENCRYPTION_KEY** for encrypting message content at rest. It must be a 32-byte value, base64-encoded.
+
+**Generate a key (Linux/macOS):**
+
+```bash
+openssl rand -base64 32
+```
+
+Set it when running the server:
+
+```bash
+export WHISPR_MESSAGE_ENCRYPTION_KEY="your-base64-key-here"
+./Whispr.Server
+```
+
+Or in Docker/systemd, pass `-e WHISPR_MESSAGE_ENCRYPTION_KEY=...` or `Environment=WHISPR_MESSAGE_ENCRYPTION_KEY=...`.
+
+**Important:** Back up this key. If you lose it, existing encrypted messages cannot be decrypted. Rotating the key requires re-encrypting existing messages (not currently automated).
+
+**Local testing only:** To run without a key (messages stored unencrypted), set `WHISPR_DEV_SKIP_MESSAGE_ENCRYPTION=1`. Do not use in production.
+
+---
+
 ## Docker
 
 ### Using a pre-built image

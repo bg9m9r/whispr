@@ -1,3 +1,5 @@
+using Whispr.Core.Models;
+
 namespace Whispr.Server.Repositories;
 
 /// <summary>
@@ -6,12 +8,12 @@ namespace Whispr.Server.Repositories;
 public interface IChannelRepository
 {
     /// <summary>
-    /// Loads all channels from the store.
+    /// Loads all channels from the store. KeyMaterial is empty for text channels.
     /// </summary>
-    IReadOnlyList<(Guid Id, string Name, byte[] KeyMaterial, bool IsDefault)> LoadAll();
+    IReadOnlyList<(Guid Id, string Name, byte[] KeyMaterial, bool IsDefault, ChannelType Type)> LoadAll();
 
     /// <summary>
-    /// Inserts a new channel. Returns true on success.
+    /// Inserts a new channel. keyMaterial is empty for text channels. Returns true on success.
     /// </summary>
-    bool Insert(Guid id, string name, byte[] keyMaterial);
+    bool Insert(Guid id, string name, byte[] keyMaterial, ChannelType type);
 }

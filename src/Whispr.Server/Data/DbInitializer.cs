@@ -23,6 +23,8 @@ public static class DbInitializer
         using var ctx = new WhisprDbContext(options);
         ctx.Database.EnsureCreated();
         EnsureMessagesTable(ctx);
+        EnsureMessageCreatedAtTicksColumn(ctx);
+        EnsureChannelTypeColumn(ctx);
         SeedPermissionsAndRoles(ctx);
         SeedDefaultChannel(ctx);
         MigrateFromJsonIfNeeded(ctx, path);
@@ -48,6 +50,27 @@ public static class DbInitializer
         catch
         {
             // Table/indexes may already exist from EnsureCreated
+        }
+    }
+
+    private static void EnsureMessageCreatedAtTicksColumn(WhisprDbContext ctx)
+    {
+        try
+        {
+            ctx.Database.ExecuteSqlRaw("ALTER TABLE Messages ADD COLUMN CreatedAtTicks INTEGER NOT NULL DEFAULT 0");
+        }
+        catch
+        {
+            // Column may already exist
+        }
+
+        // Backfill: set CreatedAtTicks from CreatedAt for any rows still at 0
+        var needBackfill = ctx.Messages.Any(m => m.CreatedAtTicks == 0);
+        if (needBackfill)
+        {
+            foreach (var m in ctx.Messages.Where(m => m.CreatedAtTicks == 0))
+                m.CreatedAtTicks = m.CreatedAt.UtcTicks;
+            ctx.SaveChanges();
         }
     }
 
@@ -102,6 +125,18 @@ public static class DbInitializer
         }
     }
 
+    private static void EnsureChannelTypeColumn(WhisprDbContext ctx)
+    {
+        try
+        {
+            ctx.Database.ExecuteSqlRaw("ALTER TABLE Channels ADD COLUMN ChannelType INTEGER NOT NULL DEFAULT 0");
+        }
+        catch
+        {
+            // Column may already exist
+        }
+    }
+
     private static void SeedPermissionsAndRoles(WhisprDbContext ctx)
     {
         if (ctx.Permissions.Any())
@@ -121,19 +156,45 @@ public static class DbInitializer
 
     private static void SeedDefaultChannel(WhisprDbContext ctx)
     {
-        if (ctx.Channels.Any())
-            return;
+        var hasAny = ctx.Channels.Any();
+        var hasText = ctx.Channels.Any(c => c.ChannelType == 1);
 
-        var id = Guid.NewGuid();
-        var keyMaterial = System.Security.Cryptography.RandomNumberGenerator.GetBytes(32);
-        ctx.Channels.Add(new ChannelEntity
+        if (!hasAny)
         {
-            Id = id.ToString(),
-            Name = "General",
-            KeyMaterial = keyMaterial,
-            IsDefault = true
-        });
-        ctx.SaveChanges();
+            // Brand-new DB: create default voice and text channels
+            var voiceId = Guid.NewGuid();
+            ctx.Channels.Add(new ChannelEntity
+            {
+                Id = voiceId.ToString(),
+                Name = "General",
+                KeyMaterial = System.Security.Cryptography.RandomNumberGenerator.GetBytes(32),
+                IsDefault = true,
+                ChannelType = 0 // Voice
+            });
+            ctx.Channels.Add(new ChannelEntity
+            {
+                Id = Guid.NewGuid().ToString(),
+                Name = "Chat",
+                KeyMaterial = Array.Empty<byte>(),
+                IsDefault = false,
+                ChannelType = 1 // Text
+            });
+        }
+        else if (!hasText)
+        {
+            // Existing DB with no text channel: add default text channel
+            ctx.Channels.Add(new ChannelEntity
+            {
+                Id = Guid.NewGuid().ToString(),
+                Name = "Chat",
+                KeyMaterial = Array.Empty<byte>(),
+                IsDefault = false,
+                ChannelType = 1 // Text
+            });
+        }
+
+        if (!hasAny || !hasText)
+            ctx.SaveChanges();
     }
 
     private static void SeedAdminUserRoles(WhisprDbContext ctx)

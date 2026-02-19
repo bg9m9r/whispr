@@ -29,6 +29,8 @@ public sealed class FakeChannelService : IChannelService
     public event Action<ChannelJoinedResult>? RoomJoinedReceived;
     public event Action? RoomLeftReceived;
     public event Action<int?>? PingLatencyUpdated;
+    public event Action<ChatMessagePayload>? MessageReceived;
+    public event Action<MessageHistoryPayload>? MessageHistoryReceived;
 
     public int? PingLatencyMs => null;
 
@@ -59,7 +61,7 @@ public sealed class FakeChannelService : IChannelService
     public Task<ChannelJoinedResult?> SwitchToChannelAsync(Guid channelId) =>
         Task.FromResult<ChannelJoinedResult?>(_channelResult);
 
-    public Task<ChannelJoinedResult?> CreateChannelAsync(string name) =>
+    public Task<ChannelJoinedResult?> CreateChannelAsync(string name, string type = "voice") =>
         Task.FromResult<ChannelJoinedResult?>(_channelResult);
 
     public Task LeaveRoomAsync() => Task.CompletedTask;
@@ -140,6 +142,10 @@ public sealed class FakeChannelService : IChannelService
         var ch = _serverState.Channels.FirstOrDefault(c => c.Id == channelId);
         return ch?.Members ?? [];
     }
+
+    public Task SendMessageAsync(Guid channelId, string content, CancellationToken ct = default) => Task.CompletedTask;
+
+    public Task RequestMessageHistoryAsync(Guid channelId, DateTimeOffset? since = null, DateTimeOffset? before = null, int limit = 100, CancellationToken ct = default) => Task.CompletedTask;
 
     public void Dispose() { }
 }

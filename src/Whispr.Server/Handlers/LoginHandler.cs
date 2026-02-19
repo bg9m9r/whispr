@@ -81,10 +81,12 @@ internal sealed class LoginHandler(IAuthService auth, IChannelService channels, 
                 ClientId = udpRegistry.GetClientId(id) ?? 0,
                 IsAdmin = auth.IsAdmin(id)
             }).ToList();
+            var defaultRoomType = channel.Type == ChannelType.Text ? "text" : "voice";
             var roomJoined = ControlProtocol.Serialize(MessageTypes.RoomJoined, new RoomJoinedPayload
             {
                 RoomId = channel.Id,
                 RoomName = channel.Name,
+                Type = defaultRoomType,
                 MemberIds = channel.MemberIds,
                 Members = members,
                 KeyMaterial = keyMaterial
@@ -100,7 +102,7 @@ internal sealed class LoginHandler(IAuthService auth, IChannelService channels, 
                     ClientId = udpRegistry.GetClientId(id) ?? 0,
                     IsAdmin = auth.IsAdmin(id)
                 }).ToList();
-                return new ChannelInfo { Id = c.Id, Name = c.Name, MemberIds = c.MemberIds, Members = m };
+                return new ChannelInfo { Id = c.Id, Name = c.Name, Type = string.Equals(c.Type, "text", StringComparison.OrdinalIgnoreCase) ? "text" : "voice", MemberIds = c.MemberIds, Members = m };
             }).ToList();
             var serverState = ControlProtocol.Serialize(MessageTypes.ServerState, new ServerStatePayload
             {

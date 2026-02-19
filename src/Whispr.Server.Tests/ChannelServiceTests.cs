@@ -21,6 +21,7 @@ public sealed class ChannelServiceTests
         var result = channels.JoinDefaultChannel(userId);
         Assert.NotNull(result);
         Assert.NotNull(result.Value.Channel);
+        Assert.NotNull(result.Value.KeyMaterial);
         Assert.NotEmpty(result.Value.KeyMaterial);
         Assert.Equal("General", result.Value.Channel.Name);
     }
@@ -47,7 +48,7 @@ public sealed class ChannelServiceTests
         var userId = Guid.NewGuid();
         channels.JoinDefaultChannel(userId);
 
-        var channel = channels.CreateChannel("Voice Chat", userId);
+        var channel = channels.CreateChannel("Voice Chat", Whispr.Core.Models.ChannelType.Voice, userId);
         Assert.NotNull(channel);
         Assert.Equal("Voice Chat", channel.Name);
         Assert.NotEqual(Guid.Empty, channel.Id);
@@ -60,7 +61,7 @@ public sealed class ChannelServiceTests
         var userId = Guid.NewGuid();
         channels.JoinDefaultChannel(userId);
 
-        var created = channels.CreateChannel("New Room", userId);
+        var created = channels.CreateChannel("New Room", Whispr.Core.Models.ChannelType.Voice, userId);
         Assert.NotNull(created);
 
         var joinResult = channels.JoinChannel(created.Id, userId);
@@ -152,9 +153,9 @@ public sealed class ChannelServiceTests
         channels.JoinDefaultChannel(userId);
 
         for (var i = 0; i < 9; i++)
-            Assert.NotNull(channels.CreateChannel($"Channel {i}", userId));
+            Assert.NotNull(channels.CreateChannel($"Channel {i}", Whispr.Core.Models.ChannelType.Voice, userId));
 
-        Assert.Null(channels.CreateChannel("OneTooMany", userId));
+        Assert.Null(channels.CreateChannel("OneTooMany", Whispr.Core.Models.ChannelType.Voice, userId));
         Assert.False(channels.CanCreateMoreChannels);
     }
 
@@ -188,7 +189,7 @@ public sealed class ChannelServiceTests
         var channels = CreateChannelService();
         var userId = Guid.NewGuid();
         channels.JoinDefaultChannel(userId);
-        Assert.Throws<ArgumentException>(() => channels.CreateChannel("", userId));
-        Assert.Throws<ArgumentException>(() => channels.CreateChannel("   ", userId));
+        Assert.Throws<ArgumentException>(() => channels.CreateChannel("", Whispr.Core.Models.ChannelType.Voice, userId));
+        Assert.Throws<ArgumentException>(() => channels.CreateChannel("   ", Whispr.Core.Models.ChannelType.Voice, userId));
     }
 }

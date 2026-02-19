@@ -11,9 +11,9 @@ public interface IMessageRepository
     MessageRecord Add(Guid channelId, Guid senderId, string content);
 
     /// <summary>
-    /// Gets messages for a channel, optionally since a given timestamp. Ordered by CreatedAt ascending.
+    /// Gets messages for a channel. When since is set: messages after that time (ascending). When before is set: messages before that time (ascending). Otherwise: latest messages (ascending). Ordered by CreatedAt ascending.
     /// </summary>
-    IReadOnlyList<MessageRecord> GetByChannel(Guid channelId, DateTimeOffset? since = null, int limit = 100);
+    IReadOnlyList<MessageRecord> GetByChannel(Guid channelId, DateTimeOffset? since = null, DateTimeOffset? before = null, int limit = 100);
 }
 
 /// <summary>

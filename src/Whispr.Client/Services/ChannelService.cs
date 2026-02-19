@@ -23,6 +23,7 @@ public sealed class ChannelService : IChannelService
     private TaskCompletionSource<ChannelJoinedResult?>? _pendingRoomJoinedTcs;
     private TaskCompletionSource<object?>? _pendingPermissionResponseTcs;
     private TaskCompletionSource<uint>? _pendingRegisterUdpTcs;
+    private TaskCompletionSource<MessageHistoryPayload?>? _pendingMessageHistoryTcs;
     private bool _disposed;
     private int? _pingLatencyMs;
     private DateTime _pendingPingSentAt;
@@ -85,6 +86,16 @@ public sealed class ChannelService : IChannelService
     /// Raised when ping latency is updated. Value: ms, or -1 for timeout, or null when reset.
     /// </summary>
     public event Action<int?>? PingLatencyUpdated;
+
+    /// <summary>
+    /// Raised when a chat message is received (text channels). Subscribe on UI thread.
+    /// </summary>
+    public event Action<ChatMessagePayload>? MessageReceived;
+
+    /// <summary>
+    /// Raised when message history response is received. Subscribe on UI thread.
+    /// </summary>
+    public event Action<MessageHistoryPayload>? MessageHistoryReceived;
 
     /// <summary>
     /// Initializes with initial room and state, then starts the control reader.
@@ -207,12 +218,12 @@ public sealed class ChannelService : IChannelService
     }
 
     /// <summary>
-    /// Creates a new channel and joins it.
+    /// Creates a new channel and joins it. type is "voice" or "text".
     /// </summary>
-    public async Task<ChannelJoinedResult?> CreateChannelAsync(string name)
+    public async Task<ChannelJoinedResult?> CreateChannelAsync(string name, string type = "voice")
     {
         _pendingRoomJoinedTcs = new TaskCompletionSource<ChannelJoinedResult?>();
-        await _connection.SendAsync(MessageTypes.CreateRoom, new CreateRoomPayload { Name = name });
+        await _connection.SendAsync(MessageTypes.CreateRoom, new CreateRoomPayload { Name = name, Type = type });
         var result = await _pendingRoomJoinedTcs.Task;
         _pendingRoomJoinedTcs = null;
         return result;
@@ -298,6 +309,26 @@ public sealed class ChannelService : IChannelService
         var result = await _pendingPermissionResponseTcs.Task;
         _pendingPermissionResponseTcs = null;
         return result as ChannelPermissionsPayload;
+    }
+
+    /// <summary>
+    /// Sends a chat message to a text channel.
+    /// </summary>
+    public async Task SendMessageAsync(Guid channelId, string content, CancellationToken ct = default)
+    {
+        await _connection.SendAsync(MessageTypes.SendMessage, new SendMessagePayload { ChannelId = channelId, Content = content }, ct);
+    }
+
+    /// <summary>
+    /// Requests message history for a channel. MessageHistoryReceived is raised when the response arrives.
+    /// Use before to request older messages (e.g. for scroll-up paging).
+    /// </summary>
+    public async Task RequestMessageHistoryAsync(Guid channelId, DateTimeOffset? since = null, DateTimeOffset? before = null, int limit = 100, CancellationToken ct = default)
+    {
+        _pendingMessageHistoryTcs = new TaskCompletionSource<MessageHistoryPayload?>();
+        await _connection.SendAsync(MessageTypes.GetMessageHistory, new GetMessageHistoryPayload { ChannelId = channelId, Since = since, Before = before, Limit = limit }, ct);
+        await _pendingMessageHistoryTcs.Task.WaitAsync(ct);
+        _pendingMessageHistoryTcs = null;
     }
 
     /// <summary>
@@ -388,19 +419,25 @@ public sealed class ChannelService : IChannelService
                         var roomJoined = ControlProtocol.DeserializePayload<RoomJoinedPayload>(msg);
                         if (roomJoined is not null)
                         {
-                            var key = KeyDerivation.DeriveAudioKey(roomJoined.KeyMaterial);
+                            var key = roomJoined.KeyMaterial is { Length: > 0 }
+                                ? KeyDerivation.DeriveAudioKey(roomJoined.KeyMaterial)
+                                : null;
+                            var roomType = string.Equals(roomJoined.Type, "text", StringComparison.OrdinalIgnoreCase) ? "text" : "voice";
                             var members = roomJoined.Members ?? roomJoined.MemberIds.Select(id => new MemberInfo { UserId = id, Username = id.ToString(), ClientId = 0 }).ToList();
-                            var result = new ChannelJoinedResult(roomJoined.RoomId, roomJoined.RoomName, roomJoined.MemberIds, members, key);
+                            var result = new ChannelJoinedResult(roomJoined.RoomId, roomJoined.RoomName, roomType, roomJoined.MemberIds, members, key);
 
                             _pendingRoomJoinedTcs?.TrySetResult(result);
-                            ChannelResult = result;
-                            _members.Clear();
-                            _userIdToClientId.Clear();
-                            foreach (var m in result.Members)
+                            if (roomType == "voice")
                             {
-                                _members[m.UserId] = m.Username;
-                                if (m.ClientId != 0)
-                                    _userIdToClientId[m.UserId] = m.ClientId;
+                                ChannelResult = result;
+                                _members.Clear();
+                                _userIdToClientId.Clear();
+                                foreach (var m in result.Members)
+                                {
+                                    _members[m.UserId] = m.Username;
+                                    if (m.ClientId != 0)
+                                        _userIdToClientId[m.UserId] = m.ClientId;
+                                }
                             }
                             var r = result;
                             _postToUi(() => RoomJoinedReceived?.Invoke(r));
@@ -429,6 +466,7 @@ public sealed class ChannelService : IChannelService
                         _pendingRoomJoinedTcs?.TrySetResult(null);
                         _pendingRoomLeftTcs?.TrySetResult(false);
                         _pendingPermissionResponseTcs?.TrySetResult(null);
+                        _pendingMessageHistoryTcs?.TrySetResult(null);
                         _pendingRegisterUdpTcs?.TrySetException(new InvalidOperationException(err?.Message ?? "Server error"));
                         ClientLog.Info($"Server error: {err?.Message}");
                         break;
@@ -451,6 +489,24 @@ public sealed class ChannelService : IChannelService
                         var channelPerms = ControlProtocol.DeserializePayload<ChannelPermissionsPayload>(msg);
                         _pendingPermissionResponseTcs?.TrySetResult(channelPerms);
                         _pendingPermissionResponseTcs = null;
+                        break;
+                    case MessageTypes.MessageReceived:
+                        var chatMsg = ControlProtocol.DeserializePayload<ChatMessagePayload>(msg);
+                        if (chatMsg is not null)
+                        {
+                            var cm = chatMsg;
+                            _postToUi(() => MessageReceived?.Invoke(cm));
+                        }
+                        break;
+                    case MessageTypes.MessageHistory:
+                        var historyPayload = ControlProtocol.DeserializePayload<MessageHistoryPayload>(msg);
+                        if (historyPayload is not null)
+                        {
+                            _pendingMessageHistoryTcs?.TrySetResult(historyPayload);
+                            _pendingMessageHistoryTcs = null;
+                            var hp = historyPayload;
+                            _postToUi(() => MessageHistoryReceived?.Invoke(hp));
+                        }
                         break;
                 }
             }

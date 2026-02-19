@@ -49,19 +49,14 @@ public partial class MainWindow : Window
         HeaderBar.IsVisible = content is not LoginView;
         if (content is ChannelView)
         {
-            SizeToContent = SizeToContent.WidthAndHeight;
-            LayoutUpdated += OnChannelViewLayoutUpdated;
+            SizeToContent = SizeToContent.Manual;
+            Width = 920;
+            Height = 620;
         }
         else
         {
             SizeToContent = SizeToContent.WidthAndHeight;
         }
-    }
-
-    private void OnChannelViewLayoutUpdated(object? sender, EventArgs e)
-    {
-        LayoutUpdated -= OnChannelViewLayoutUpdated;
-        SizeToContent = SizeToContent.Manual;
     }
 
     /// <summary>

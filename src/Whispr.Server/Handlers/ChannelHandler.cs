@@ -50,14 +50,57 @@ internal sealed class ChannelHandler(IAuthService auth, IChannelService channels
             return;
         }
 
+        var channelType = string.Equals(payload.Type, "text", StringComparison.OrdinalIgnoreCase)
+            ? ChannelType.Text
+            : ChannelType.Voice;
+
         var user = ctx.State.User!;
-        var channel = channels.CreateChannel(payload.Name, user.Id);
+        var channel = channels.CreateChannel(payload.Name, channelType, user.Id);
         if (channel is null)
         {
             await ctx.SendErrorAsync("create_failed", "Maximum channels (10) reached");
             return;
         }
 
+        ServerLog.Info($"Channel created: {channel.Name} by {user.Username}");
+
+        if (channelType == ChannelType.Text)
+        {
+            // Text channels: do not leave voice room or join the new channel. Just notify the client.
+            var roomJoined = ControlProtocol.Serialize(MessageTypes.RoomJoined, new RoomJoinedPayload
+            {
+                RoomId = channel.Id,
+                RoomName = channel.Name,
+                Type = "text",
+                MemberIds = [],
+                Members = [],
+                KeyMaterial = []
+            });
+            await ctx.Stream.WriteAsync(roomJoined, ctx.CancellationToken);
+
+            var channels1 = channels.ListChannels();
+            var accessibleChannels = channels1.Where(c => auth.CanAccessChannel(user.Id, c.Id)).ToList();
+            var channelInfos = accessibleChannels.Select(c =>
+            {
+                var members = c.MemberIds.Select(id => new MemberInfo
+                {
+                    UserId = id,
+                    Username = auth.GetUsername(id) ?? id.ToString(),
+                    ClientId = udpRegistry.GetClientId(id) ?? 0,
+                    IsAdmin = auth.IsAdmin(id)
+                }).ToList();
+                return new ChannelInfo { Id = c.Id, Name = c.Name, Type = string.Equals(c.Type, "text", StringComparison.OrdinalIgnoreCase) ? "text" : "voice", MemberIds = c.MemberIds, Members = members };
+            }).ToList();
+            var serverState = ControlProtocol.Serialize(MessageTypes.ServerState, new ServerStatePayload
+            {
+                Channels = channelInfos,
+                CanCreateChannel = channels.CanCreateMoreChannels
+            });
+            await ctx.Stream.WriteAsync(serverState, ctx.CancellationToken);
+            return;
+        }
+
+        // Voice channel: leave current, join new, broadcast as before
         var leaveResult = channels.LeaveChannel(user.Id);
         if (leaveResult is not null)
         {
@@ -86,7 +129,6 @@ internal sealed class ChannelHandler(IAuthService auth, IChannelService channels
         }
 
         var (joinedChannel, keyMaterial) = result.Value;
-        ServerLog.Info($"Channel created: {joinedChannel.Name} by {user.Username}");
         ctx.State.RoomId = joinedChannel.Id;
 
         var members = joinedChannel.MemberIds.Select(id => new MemberInfo
@@ -100,11 +142,20 @@ internal sealed class ChannelHandler(IAuthService auth, IChannelService channels
         {
             RoomId = joinedChannel.Id,
             RoomName = joinedChannel.Name,
+            Type = "voice",
             MemberIds = joinedChannel.MemberIds,
             Members = members,
             KeyMaterial = keyMaterial
         });
         await ctx.Stream.WriteAsync(response, ctx.CancellationToken);
+
+        var memberJoined = ControlProtocol.Serialize(MessageTypes.MemberJoined, new MemberPayload
+        {
+            UserId = user.Id,
+            Username = user.Username,
+            ClientId = 0
+        });
+        await ctx.SendToChannelAsync(joinedChannel.Id, memberJoined, user.Id, ctx.CancellationToken);
     }
 
     private async Task HandleJoinChannelAsync(ControlMessage message, ControlHandlerContext ctx)
@@ -121,6 +172,13 @@ internal sealed class ChannelHandler(IAuthService auth, IChannelService channels
         if (!PayloadValidation.IsValidChannelId(payload.RoomId, out var channelError))
         {
             await ctx.SendErrorAsync("invalid_payload", channelError!);
+            return;
+        }
+
+        var targetChannel = channels.GetChannel(payload.RoomId);
+        if (targetChannel is not null && targetChannel.Type == ChannelType.Text)
+        {
+            await ctx.SendErrorAsync("invalid_operation", "Text channels do not require joining; open the channel to read and send messages.");
             return;
         }
 
@@ -173,10 +231,12 @@ internal sealed class ChannelHandler(IAuthService auth, IChannelService channels
             ClientId = udpRegistry.GetClientId(id) ?? 0,
             IsAdmin = auth.IsAdmin(id)
         }).ToList();
+        var joinRoomType = room.Type == ChannelType.Text ? "text" : "voice";
         var response = ControlProtocol.Serialize(MessageTypes.RoomJoined, new RoomJoinedPayload
         {
             RoomId = room.Id,
             RoomName = room.Name,
+            Type = joinRoomType,
             MemberIds = room.MemberIds,
             Members = members,
             KeyMaterial = keyMaterial
@@ -257,7 +317,7 @@ internal sealed class ChannelHandler(IAuthService auth, IChannelService channels
                 ClientId = udpRegistry.GetClientId(id) ?? 0,
                 IsAdmin = auth.IsAdmin(id)
             }).ToList();
-            return new ChannelInfo { Id = c.Id, Name = c.Name, MemberIds = c.MemberIds, Members = members };
+            return new ChannelInfo { Id = c.Id, Name = c.Name, Type = string.Equals(c.Type, "text", StringComparison.OrdinalIgnoreCase) ? "text" : "voice", MemberIds = c.MemberIds, Members = members };
         }).ToList();
         var response = ControlProtocol.Serialize(MessageTypes.ServerState, new ServerStatePayload
         {

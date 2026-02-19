@@ -15,7 +15,7 @@ public sealed class ChannelViewModelTests
         var channelService = new FakeChannelService();
         var auth = new FakeAuthService();
         auth.SetLoggedInUser(Guid.NewGuid(), "alice");
-        var channelResult = new ChannelJoinedResult(Guid.NewGuid(), "General", [], [], []);
+        var channelResult = new ChannelJoinedResult(Guid.NewGuid(), "General", "voice", [], [], null);
         channelService.SetChannelResult(channelResult);
         var serverState = new ServerStatePayload { Channels = [], CanCreateChannel = true };
         channelService.Start(channelResult, serverState);
@@ -38,7 +38,7 @@ public sealed class ChannelViewModelTests
         var channelService = new FakeChannelService();
         var auth = new FakeAuthService();
         auth.SetLoggedInUser(Guid.NewGuid(), "alice");
-        var channelResult = new ChannelJoinedResult(channelId, "General", [userId], [new MemberInfo { UserId = userId, Username = "bob", ClientId = 0 }], []);
+        var channelResult = new ChannelJoinedResult(channelId, "General", "voice", [userId], [new MemberInfo { UserId = userId, Username = "bob", ClientId = 0 }], null);
         channelService.SetChannelResult(channelResult);
         channelService.SetUsernameForUserId(userId, "bob");
         var serverState = new ServerStatePayload
@@ -64,7 +64,7 @@ public sealed class ChannelViewModelTests
         var channelService = new FakeChannelService();
         var auth = new FakeAuthService();
         auth.SetLoggedInUser(Guid.NewGuid(), "alice");
-        var channelResult = new ChannelJoinedResult(channelId, "General", [], [], []);
+        var channelResult = new ChannelJoinedResult(channelId, "General", "voice", [], [], null);
         channelService.SetChannelResult(channelResult);
         var serverState = new ServerStatePayload { Channels = [new ChannelInfo { Id = channelId, Name = "General", MemberIds = [], Members = [] }], CanCreateChannel = true };
         channelService.Start(channelResult, serverState);
@@ -84,7 +84,7 @@ public sealed class ChannelViewModelTests
         var channelService = new FakeChannelService();
         var auth = new FakeAuthService();
         auth.SetLoggedInUser(Guid.NewGuid(), "alice");
-        var channelResult = new ChannelJoinedResult(Guid.NewGuid(), "General", [], [], []);
+        var channelResult = new ChannelJoinedResult(Guid.NewGuid(), "General", "voice", [], [], null);
         channelService.SetChannelResult(channelResult);
         var serverState = new ServerStatePayload { Channels = [], CanCreateChannel = true };
         channelService.Start(channelResult, serverState);
@@ -103,7 +103,7 @@ public sealed class ChannelViewModelTests
         var channelService = new FakeChannelService();
         var auth = new FakeAuthService();
         auth.SetLoggedInUser(Guid.NewGuid(), "alice");
-        var channelResult = new ChannelJoinedResult(Guid.NewGuid(), "General", [], [], []);
+        var channelResult = new ChannelJoinedResult(Guid.NewGuid(), "General", "voice", [], [], null);
         channelService.SetChannelResult(channelResult);
         var serverState = new ServerStatePayload { Channels = [], CanCreateChannel = true };
         channelService.Start(channelResult, serverState);
@@ -122,8 +122,8 @@ public sealed class ChannelViewModelTests
         var channelService = new FakeChannelService();
         var auth = new FakeAuthService();
         auth.SetLoggedInUser(Guid.NewGuid(), "alice");
-        var channelResult = new ChannelJoinedResult(channelId, "General", [], [], []);
-        var newChannelResult = new ChannelJoinedResult(otherChannelId, "Voice Chat", [], [], []);
+        var channelResult = new ChannelJoinedResult(channelId, "General", "voice", [], [], null);
+        var newChannelResult = new ChannelJoinedResult(otherChannelId, "Voice Chat", "voice", [], [], null);
         channelService.SetChannelResult(channelResult);
         channelService.ServerState = new ServerStatePayload
         {
@@ -152,7 +152,7 @@ public sealed class ChannelViewModelTests
         var channelService = new FakeChannelService();
         var auth = new FakeAuthService();
         auth.SetLoggedInUser(Guid.NewGuid(), "alice");
-        var channelResult = new ChannelJoinedResult(Guid.NewGuid(), "General", [], [], []);
+        var channelResult = new ChannelJoinedResult(Guid.NewGuid(), "General", "voice", [], [], null);
         channelService.SetChannelResult(channelResult);
         var serverState = new ServerStatePayload { Channels = [], CanCreateChannel = true };
         channelService.Start(channelResult, serverState);
@@ -170,11 +170,11 @@ public sealed class ChannelViewModelTests
     public async Task CreateChannelCommand_WithName_UpdatesCurrentChannelName()
     {
         var channelId = Guid.NewGuid();
-        var newChannelResult = new ChannelJoinedResult(channelId, "New Room", [], [], []);
+        var newChannelResult = new ChannelJoinedResult(channelId, "New Room", "voice", [], [], null);
         var channelService = new FakeChannelService();
         var auth = new FakeAuthService();
         auth.SetLoggedInUser(Guid.NewGuid(), "alice");
-        var channelResult = new ChannelJoinedResult(Guid.NewGuid(), "General", [], [], []);
+        var channelResult = new ChannelJoinedResult(Guid.NewGuid(), "General", "voice", [], [], null);
         channelService.SetChannelResult(channelResult);
         var serverState = new ServerStatePayload { Channels = [], CanCreateChannel = true };
         channelService.Start(channelResult, serverState);

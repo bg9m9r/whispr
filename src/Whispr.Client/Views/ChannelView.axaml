@@ -9,6 +9,17 @@
         <conv:InverseBoolConverter x:Key="InverseBool"/>
         <conv:SpeakerIconBrushConverter x:Key="SpeakerIconBrush"/>
         <conv:SpeakingGlowEffectConverter x:Key="SpeakingGlowEffect"/>
+        <conv:ChannelTypeToBoolConverter x:Key="ChannelTypeToBool"/>
+        <conv:ContentToSegmentsConverter x:Key="ContentToSegments"/>
+        <DataTemplate x:Key="MessageSegmentTemplate">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+                <TextBlock Text="{Binding Content}" TextWrapping="Wrap" Foreground="#e0e0e0" FontSize="14"
+                           IsVisible="{Binding IsLink, Converter={StaticResource InverseBool}}"/>
+                <Button Content="{Binding Content}" Background="Transparent" Foreground="{DynamicResource WhisprAccent}"
+                        FontSize="14" Padding="0,0,4,0" Cursor="Hand" Click="OnMessageLinkClick"
+                        IsVisible="{Binding IsLink}"/>
+            </StackPanel>
+        </DataTemplate>
     </UserControl.Resources>
     <Grid ColumnDefinitions="280,*" RowDefinitions="*">
         <Border Grid.Row="0" Grid.Column="0" Background="{DynamicResource WhisprSurface}" CornerRadius="6" Margin="0,0,8,0" Padding="0">
@@ -19,6 +30,8 @@
                         <Flyout Placement="AnchorAndGravity" ShowMode="Standard">
                             <StackPanel Spacing="8" MinWidth="200" DataContext="{Binding $parent[UserControl].DataContext}">
                                 <TextBox x:Name="CreateChannelNameBox" Watermark="Channel name" Text="{Binding CreateChannelName, Mode=TwoWay}"/>
+                                <ComboBox x:Name="CreateChannelTypeBox" SelectedItem="{Binding CreateChannelType, Mode=TwoWay}"
+                                          ItemsSource="{Binding CreateChannelTypeChoices}"/>
                                 <Button Content="Create" Click="OnCreateChannelFlyoutClick"/>
                             </StackPanel>
                         </Flyout>
@@ -49,7 +62,9 @@
                                             VerticalAlignment="Center" IsVisible="{Binding IsAdmin}">
                                         <TextBlock Text="Admin" Foreground="#ffffff" FontSize="10" FontWeight="SemiBold"/>
                                     </Border>
-                                    <Border Margin="4,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock Margin="4,0,0,0" Text="#" FontSize="14" Foreground="{DynamicResource WhisprTextMuted}"
+                                               VerticalAlignment="Center" IsVisible="{Binding ChannelType, Converter={StaticResource ChannelTypeToBool}, ConverterParameter=text}"/>
+                                    <Border Margin="4,0,0,0" VerticalAlignment="Center" IsVisible="{Binding ChannelType, Converter={StaticResource ChannelTypeToBool}, ConverterParameter=voice}">
                                         <PathIcon Width="14" Height="14"
                                                   Data="M3 9v6h4l5 5V4L7 9H3z"
                                                   Foreground="{Binding IsSpeaking, Converter={StaticResource SpeakerIconBrush}}"
@@ -95,8 +110,41 @@
             <Grid RowDefinitions="Auto,*">
                 <TextBlock Grid.Row="0" x:Name="ChannelNameText" Text="{Binding CurrentChannelName}" FontSize="18" FontWeight="Bold" Foreground="#ffffff" Margin="0,0,0,12"/>
                 <Border Grid.Row="1" Background="{DynamicResource WhisprSurfaceLight}" CornerRadius="6" Padding="12">
-                    <TextBlock Text="Text chat (coming soon)" Foreground="{DynamicResource WhisprTextMuted}"
-                               VerticalAlignment="Center" HorizontalAlignment="Center" FontSize="14"/>
+                    <Grid>
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" IsVisible="{Binding HasTextChannelSelected, Converter={StaticResource InverseBool}}">
+                            <TextBlock Text="No text channel" Foreground="{DynamicResource WhisprTextMuted}" FontSize="14" HorizontalAlignment="Center"/>
+                            <TextBlock Text="Create one from the server context menu." Foreground="{DynamicResource WhisprTextMuted}" FontSize="12" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                        </StackPanel>
+                        <Grid IsVisible="{Binding HasTextChannelSelected}" RowDefinitions="*,Auto">
+                            <ScrollViewer x:Name="MessageScroll" Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                <ItemsControl x:Name="MessageList" ItemsSource="{Binding MessageDisplayItems}" Margin="0,0,0,8">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Margin="0,4" Spacing="2">
+                                                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding ShowSenderHeader}">
+                                                    <TextBlock Text="{Binding Message.SenderUsername}" FontWeight="SemiBold" Foreground="{DynamicResource WhisprAccent}" FontSize="13"/>
+                                                    <TextBlock Text="{Binding Message.CreatedAt, StringFormat='{}{0:g}'}" Foreground="{DynamicResource WhisprTextMuted}" FontSize="11" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                                <ItemsControl ItemsSource="{Binding Message.Content, Converter={StaticResource ContentToSegments}}"
+                                                             ItemTemplate="{StaticResource MessageSegmentTemplate}">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <WrapPanel/>
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                            <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+                                <TextBox Grid.Column="0" x:Name="MessageInputBox" Watermark="Type a message..." Text="{Binding MessageInputText, Mode=TwoWay}"
+                                         MinWidth="120" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <Button Grid.Column="1" Content="Send" Command="{Binding SendMessageCommand}" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Grid>
+                    </Grid>
                 </Border>
             </Grid>
         </Border>

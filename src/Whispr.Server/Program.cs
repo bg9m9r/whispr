@@ -16,19 +16,24 @@ var config = new ConfigurationBuilder()
 
 var options = config.Get<ServerOptions>() ?? new ServerOptions();
 
-// Certificate password from env var takes precedence (avoids storing in config file)
+// Env overrides (avoid storing secrets in config)
 var certPassword = Environment.GetEnvironmentVariable("WHISPR_CERT_PASSWORD");
-if (certPassword is not null)
+var messageEncryptionKey = Environment.GetEnvironmentVariable("WHISPR_MESSAGE_ENCRYPTION_KEY")
+    ?? options.MessageEncryptionKeyBase64;
+if (certPassword is not null || messageEncryptionKey is not null)
+{
     options = new ServerOptions
     {
         ControlPort = options.ControlPort,
         AudioPort = options.AudioPort,
         CertificatePath = options.CertificatePath,
-        CertificatePassword = certPassword,
+        CertificatePassword = certPassword ?? options.CertificatePassword,
         DatabasePath = options.DatabasePath,
         SeedTestUsers = options.SeedTestUsers,
-        TokenLifetimeHours = options.TokenLifetimeHours
+        TokenLifetimeHours = options.TokenLifetimeHours,
+        MessageEncryptionKeyBase64 = messageEncryptionKey ?? options.MessageEncryptionKeyBase64
     };
+}
 
 // Ensure database schema exists and seed defaults
 DbInitializer.Initialize(options.DatabasePath);
@@ -46,6 +51,47 @@ if (string.IsNullOrWhiteSpace(options.DatabasePath))
 }
 else
 {
+    IMessageEncryption messageEncryption;
+    if (!string.IsNullOrWhiteSpace(options.MessageEncryptionKeyBase64))
+    {
+        byte[] keyBytes;
+        try
+        {
+            keyBytes = Convert.FromBase64String(options.MessageEncryptionKeyBase64.Trim());
+        }
+        catch (FormatException)
+        {
+            Console.Error.WriteLine("WHISPR_MESSAGE_ENCRYPTION_KEY must be valid base64.");
+            return 1;
+        }
+        if (keyBytes.Length != 32)
+        {
+            Console.Error.WriteLine("WHISPR_MESSAGE_ENCRYPTION_KEY must decode to 32 bytes (AES-256).");
+            return 1;
+        }
+        messageEncryption = new AesMessageEncryption(keyBytes);
+    }
+    else
+    {
+        var isAddUser = args is ["add-user", ..];
+        var devSkipEncryption = string.Equals(Environment.GetEnvironmentVariable("WHISPR_DEV_SKIP_MESSAGE_ENCRYPTION"), "1", StringComparison.Ordinal)
+            || string.Equals(Environment.GetEnvironmentVariable("WHISPR_DEV_SKIP_MESSAGE_ENCRYPTION"), "true", StringComparison.OrdinalIgnoreCase);
+        if (isAddUser)
+            messageEncryption = new ThrowingMessageEncryptionStub();
+        else if (devSkipEncryption)
+        {
+            Console.WriteLine("WARNING: WHISPR_DEV_SKIP_MESSAGE_ENCRYPTION is set. Messages are not encrypted at rest. Use only for local testing.");
+            messageEncryption = new NoOpMessageEncryption();
+        }
+        else
+        {
+            Console.Error.WriteLine("When using a database, WHISPR_MESSAGE_ENCRYPTION_KEY (32-byte key, base64) is required for message encryption at rest.");
+            Console.Error.WriteLine("For local testing only, set WHISPR_DEV_SKIP_MESSAGE_ENCRYPTION=1 to skip encryption (not for production).");
+            return 1;
+        }
+    }
+    services.AddSingleton<IMessageEncryption>(messageEncryption);
+
     var path = Path.GetFullPath(options.DatabasePath);
     Directory.CreateDirectory(Path.GetDirectoryName(path)!);
     var connectionString = $"Data Source={path}";

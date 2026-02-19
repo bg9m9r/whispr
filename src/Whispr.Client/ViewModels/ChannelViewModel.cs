@@ -23,6 +23,9 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
     private readonly Guid _myUserId;
 
     private ChannelJoinedResult _channelResult;
+    private Guid? _selectedChannelId;
+    private string _selectedChannelName = "";
+    private string _selectedChannelType = "voice";
     private ServerTreeNode _rootNode = null!;
     private AudioService? _audioService;
     private System.Timers.Timer? _uiTimer;
@@ -61,8 +64,47 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string _createChannelName = "";
 
+    /// <summary>"voice" or "text". Used when creating a channel.</summary>
+    [ObservableProperty]
+    private string _createChannelType = "voice";
+
+    /// <summary>Choices for create channel type dropdown.</summary>
+    public IReadOnlyList<string> CreateChannelTypeChoices { get; } = ["voice", "text"];
+
     [ObservableProperty]
     private string _pingDisplayText = "—";
+
+    /// <summary>Chat messages for the current text channel. Only populated when IsTextChannel.</summary>
+    public ObservableCollection<ChatMessagePayload> Messages { get; } = new();
+
+    /// <summary>Messages with display hints (e.g. show sender header only when sender changes). Bound by the view.</summary>
+    public ObservableCollection<MessageDisplayItem> MessageDisplayItems { get; } = new();
+
+    [ObservableProperty]
+    private string _messageInputText = "";
+
+    /// <summary>True when a request for older messages is in flight (scroll-up paging).</summary>
+    [ObservableProperty]
+    private bool _isLoadingOlderMessages;
+
+    /// <summary>True when the next MessageHistoryReceived should prepend (older messages) instead of replace.</summary>
+    private bool _pendingHistoryIsOlder;
+
+    /// <summary>Selected channel for the main panel (voice or text).</summary>
+    public Guid? SelectedChannelId { get => _selectedChannelId; private set => SetProperty(ref _selectedChannelId, value); }
+    /// <summary>Name of the selected channel.</summary>
+    public string SelectedChannelName { get => _selectedChannelName; private set => SetProperty(ref _selectedChannelName, value ?? ""); }
+    /// <summary>"voice" or "text".</summary>
+    public string SelectedChannelType { get => _selectedChannelType; private set => SetProperty(ref _selectedChannelType, value ?? "voice"); }
+
+    /// <summary>True when the selected channel is voice (audio).</summary>
+    public bool IsVoiceChannel => string.Equals(_selectedChannelType, "voice", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>True when the selected channel is text (messages only).</summary>
+    public bool IsTextChannel => string.Equals(_selectedChannelType, "text", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>True when a text channel is selected for viewing (right panel shows messages). When false, show "No text channel" placeholder.</summary>
+    public bool HasTextChannelSelected => _selectedChannelId.HasValue;
 
     // Context menu state (set by view on right-click)
     private ServerTreeNode? _contextMenuTargetNode;
@@ -104,11 +146,45 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
         _channelService.RoomJoinedReceived += OnRoomJoinedReceived;
         _channelService.RoomLeftReceived += OnRoomLeftReceived;
         _channelService.PingLatencyUpdated += OnPingLatencyUpdated;
+        _channelService.MessageReceived += OnMessageReceived;
+        _channelService.MessageHistoryReceived += OnMessageHistoryReceived;
 
         BuildTree();
-        CurrentChannelName = channelResult.ChannelName;
         CanCreateChannel = serverState.CanCreateChannel;
-        _ = EnterRoomAsync();
+
+        var isVoice = string.Equals(channelResult.ChannelType, "voice", StringComparison.OrdinalIgnoreCase);
+        if (isVoice)
+        {
+            _ = EnterRoomAsync();
+            var firstText = serverState.Channels?.FirstOrDefault(c => string.Equals(c.Type, "text", StringComparison.OrdinalIgnoreCase));
+            if (firstText is not null)
+            {
+                SelectedChannelId = firstText.Id;
+                SelectedChannelName = firstText.Name ?? "Text";
+                SelectedChannelType = "text";
+                CurrentChannelName = SelectedChannelName;
+                _ = LoadTextChannelMessagesAsync();
+            }
+            else
+            {
+                SelectedChannelId = null;
+                SelectedChannelName = "No text channel";
+                SelectedChannelType = "text";
+                CurrentChannelName = SelectedChannelName;
+            }
+            OnPropertyChanged(nameof(IsVoiceChannel));
+            OnPropertyChanged(nameof(IsTextChannel));
+            OnPropertyChanged(nameof(HasTextChannelSelected));
+            ((IRelayCommand)SendMessageCommand).NotifyCanExecuteChanged();
+        }
+        else
+        {
+            SelectedChannelId = channelResult.ChannelId;
+            SelectedChannelName = channelResult.ChannelName;
+            SelectedChannelType = channelResult.ChannelType ?? "voice";
+            CurrentChannelName = SelectedChannelName;
+            _ = LoadTextChannelMessagesAsync();
+        }
     }
 
     private void UpdatePermissionTargetItems()
@@ -132,17 +208,112 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
 
     private void OnServerStateReceived(ServerStatePayload state)
     {
-        RefreshTree();
+        BuildTree();
         CanCreateChannel = state.CanCreateChannel;
+        TreeRefreshed?.Invoke();
     }
 
     private void OnRoomJoinedReceived(ChannelJoinedResult result)
     {
-        _channelResult = result;
-        StopAudio();
-        CurrentChannelName = result.ChannelName;
-        _ = EnterRoomAsync();
+        var isVoice = string.Equals(result.ChannelType, "voice", StringComparison.OrdinalIgnoreCase);
+        var isText = string.Equals(result.ChannelType, "text", StringComparison.OrdinalIgnoreCase);
+
+        if (isVoice)
+        {
+            _channelResult = result;
+            StopAudio();
+            _ = EnterRoomAsync();
+        }
+        else if (isText)
+        {
+            SelectedChannelId = result.ChannelId;
+            SelectedChannelName = result.ChannelName;
+            SelectedChannelType = "text";
+            CurrentChannelName = result.ChannelName;
+            _ = LoadTextChannelMessagesAsync();
+            OnPropertyChanged(nameof(IsVoiceChannel));
+            OnPropertyChanged(nameof(IsTextChannel));
+            OnPropertyChanged(nameof(HasTextChannelSelected));
+            ((IRelayCommand)SendMessageCommand).NotifyCanExecuteChanged();
+        }
+
+        RefreshTree();
         _ = _channelService.RequestServerStateAsync();
+    }
+
+    private void OnMessageReceived(ChatMessagePayload payload)
+    {
+        if (!_selectedChannelId.HasValue || payload.ChannelId != _selectedChannelId.Value) return;
+        Messages.Add(payload);
+        RefreshMessageDisplayItems();
+    }
+
+    private void OnMessageHistoryReceived(MessageHistoryPayload payload)
+    {
+        if (!_selectedChannelId.HasValue || payload.ChannelId != _selectedChannelId.Value) return;
+        IsLoadingOlderMessages = false;
+        if (_pendingHistoryIsOlder)
+        {
+            _pendingHistoryIsOlder = false;
+            foreach (var m in payload.Messages.Reverse())
+                Messages.Insert(0, m);
+        }
+        else
+        {
+            Messages.Clear();
+            foreach (var m in payload.Messages)
+                Messages.Add(m);
+        }
+        RefreshMessageDisplayItems();
+    }
+
+    private void RefreshMessageDisplayItems()
+    {
+        MessageDisplayItems.Clear();
+        Guid? prevSenderId = null;
+        foreach (var m in Messages)
+        {
+            var showHeader = prevSenderId is null || prevSenderId.Value != m.SenderId;
+            MessageDisplayItems.Add(new MessageDisplayItem(m, showHeader));
+            prevSenderId = m.SenderId;
+        }
+    }
+
+    private async Task LoadTextChannelMessagesAsync()
+    {
+        if (!_selectedChannelId.HasValue) return;
+        Messages.Clear();
+        MessageDisplayItems.Clear();
+        _pendingHistoryIsOlder = false;
+        try
+        {
+            await _channelService.RequestMessageHistoryAsync(_selectedChannelId.Value, since: null, before: null, limit: 100);
+        }
+        catch (Exception ex)
+        {
+            ClientLog.Info($"Load message history failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Requests older messages (for scroll-up). Call when user scrolls near the top.
+    /// </summary>
+    public async Task LoadOlderMessagesAsync()
+    {
+        if (!IsTextChannel || !_selectedChannelId.HasValue || Messages.Count == 0 || IsLoadingOlderMessages) return;
+        var oldest = Messages[0].CreatedAt;
+        IsLoadingOlderMessages = true;
+        _pendingHistoryIsOlder = true;
+        try
+        {
+            await _channelService.RequestMessageHistoryAsync(_selectedChannelId.Value, before: oldest, limit: 50);
+        }
+        catch (Exception ex)
+        {
+            ClientLog.Info($"Load older messages failed: {ex.Message}");
+            IsLoadingOlderMessages = false;
+            _pendingHistoryIsOlder = false;
+        }
     }
 
     private void OnRoomLeftReceived()
@@ -177,7 +348,8 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
                 DisplayName = ch.Name,
                 Kind = NodeKind.Channel,
                 ChannelId = ch.Id,
-                IsCurrentChannel = ch.Id == _channelResult.ChannelId
+                IsCurrentChannel = ch.Id == _selectedChannelId,
+                ChannelType = ch.Type ?? "voice"
             };
 
             foreach (var m in ch.Members)
@@ -207,7 +379,7 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
             var channelNode = _rootNode.Children.FirstOrDefault(n => n.ChannelId == ch.Id);
             if (channelNode is null) continue;
 
-            channelNode.IsCurrentChannel = ch.Id == _channelResult.ChannelId;
+            channelNode.IsCurrentChannel = _selectedChannelId == ch.Id;
 
             var existingUserIds = new HashSet<Guid>(channelNode.Children.Select(c => c.UserId!.Value));
             var currentUserIds = new HashSet<Guid>(ch.MemberIds);
@@ -269,6 +441,9 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
 
     private async Task EnterRoomAsync()
     {
+        if (_channelResult.AudioKey is null)
+            return;
+
         IsDisconnectEnabled = false;
 
         try
@@ -322,31 +497,54 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
         _uiTimer = null;
     }
 
-    [RelayCommand]
-    private async Task SwitchChannel(Guid channelId)
+    /// <summary>
+    /// Selects a channel for the main panel. Voice: joins the channel (leave current, join new). Text: only switches view, no join.
+    /// </summary>
+    public async Task SelectChannelAsync(Guid channelId, string channelName, string channelType)
     {
-        if (channelId == _channelResult.ChannelId) return;
+        var isVoice = string.Equals(channelType, "voice", StringComparison.OrdinalIgnoreCase);
+        var isText = string.Equals(channelType, "text", StringComparison.OrdinalIgnoreCase);
 
-        CanCreateChannel = false;
-        try
+        if (isText)
         {
-            var result = await _channelService.SwitchToChannelAsync(channelId);
-            if (result is not null)
+            if (channelId == _selectedChannelId) return;
+            SelectedChannelId = channelId;
+            SelectedChannelName = channelName;
+            SelectedChannelType = "text";
+            CurrentChannelName = channelName;
+            RefreshTree();
+            OnPropertyChanged(nameof(IsVoiceChannel));
+            OnPropertyChanged(nameof(IsTextChannel));
+            OnPropertyChanged(nameof(HasTextChannelSelected));
+            ((IRelayCommand)SendMessageCommand).NotifyCanExecuteChanged();
+            _ = LoadTextChannelMessagesAsync();
+            return;
+        }
+
+        if (isVoice)
+        {
+            if (channelId == _channelResult.ChannelId) return;
+            CanCreateChannel = false;
+            try
             {
-                _channelResult = result;
-                StopAudio();
-                CurrentChannelName = result.ChannelName;
-                _ = EnterRoomAsync();
+                var result = await _channelService.SwitchToChannelAsync(channelId);
+                if (result is not null)
+                {
+                    _channelResult = result;
+                    StopAudio();
+                    RefreshTree();
+                    _ = EnterRoomAsync();
+                }
             }
-        }
-        catch (Exception ex)
-        {
-            ClientLog.Info($"Switch channel failed: {ex.Message}");
-            await _channelService.RequestServerStateAsync();
-        }
-        finally
-        {
-            CanCreateChannel = _channelService.ServerState.CanCreateChannel;
+            catch (Exception ex)
+            {
+                ClientLog.Info($"Switch channel failed: {ex.Message}");
+                await _channelService.RequestServerStateAsync();
+            }
+            finally
+            {
+                CanCreateChannel = _channelService.ServerState.CanCreateChannel;
+            }
         }
     }
 
@@ -396,13 +594,30 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
 
         try
         {
-            var result = await _channelService.CreateChannelAsync(name);
+            var result = await _channelService.CreateChannelAsync(name, CreateChannelType);
             if (result is not null)
             {
-                _channelResult = result;
-                StopAudio();
-                CurrentChannelName = result.ChannelName;
-                _ = EnterRoomAsync();
+                var isVoice = string.Equals(result.ChannelType, "voice", StringComparison.OrdinalIgnoreCase);
+                var isText = string.Equals(result.ChannelType, "text", StringComparison.OrdinalIgnoreCase);
+                RefreshTree();
+                if (isVoice)
+                {
+                    _channelResult = result;
+                    StopAudio();
+                    _ = EnterRoomAsync();
+                }
+                else if (isText)
+                {
+                    SelectedChannelId = result.ChannelId;
+                    SelectedChannelName = result.ChannelName;
+                    SelectedChannelType = "text";
+                    CurrentChannelName = result.ChannelName;
+                    OnPropertyChanged(nameof(IsVoiceChannel));
+                    OnPropertyChanged(nameof(IsTextChannel));
+                    OnPropertyChanged(nameof(HasTextChannelSelected));
+                    ((IRelayCommand)SendMessageCommand).NotifyCanExecuteChanged();
+                    _ = LoadTextChannelMessagesAsync();
+                }
             }
         }
         catch (Exception ex)
@@ -438,6 +653,26 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
     {
         _host.ShowSettings();
     }
+
+    [RelayCommand(CanExecute = nameof(CanSendMessage))]
+    private async Task SendMessage()
+    {
+        var content = MessageInputText.Trim();
+        if (string.IsNullOrEmpty(content) || !IsTextChannel || !_selectedChannelId.HasValue) return;
+
+        var channelId = _selectedChannelId.Value;
+        MessageInputText = "";
+        try
+        {
+            await _channelService.SendMessageAsync(channelId, content);
+        }
+        catch (Exception ex)
+        {
+            ClientLog.Info($"Send message failed: {ex.Message}");
+        }
+    }
+
+    private bool CanSendMessage() => HasTextChannelSelected;
 
     public void SetTransmitting(bool transmitting)
     {
@@ -488,6 +723,8 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
         _channelService.RoomJoinedReceived -= OnRoomJoinedReceived;
         _channelService.RoomLeftReceived -= OnRoomLeftReceived;
         _channelService.PingLatencyUpdated -= OnPingLatencyUpdated;
+        _channelService.MessageReceived -= OnMessageReceived;
+        _channelService.MessageHistoryReceived -= OnMessageHistoryReceived;
         StopAudio();
         _channelService.Stop();
         _disposed = true;

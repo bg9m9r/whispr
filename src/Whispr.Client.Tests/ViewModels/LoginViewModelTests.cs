@@ -46,7 +46,7 @@ public sealed class LoginViewModelTests
         var host = new FakeLoginViewHost { CertWarningReturnsTrue = false };
         var loginService = new FakeLoginService();
         loginService.SetSuccess(
-            new ChannelJoinedResult(Guid.NewGuid(), "General", [], [], []),
+            new ChannelJoinedResult(Guid.NewGuid(), "General", "voice", [], [], null),
             new ServerStatePayload { Channels = [], CanCreateChannel = true });
         var vm = CreateVm(host, loginService);
 
@@ -64,7 +64,7 @@ public sealed class LoginViewModelTests
     public async Task Connect_CertWarningAccepted_ShowsChannelView()
     {
         var host = new FakeLoginViewHost { CertWarningReturnsTrue = true };
-        var roomJoined = new ChannelJoinedResult(Guid.NewGuid(), "General", [], [], []);
+        var roomJoined = new ChannelJoinedResult(Guid.NewGuid(), "General", "voice", [], [], null);
         var serverState = new ServerStatePayload { Channels = [], CanCreateChannel = true };
         var loginService = new FakeLoginService();
         loginService.SetSuccess(roomJoined, serverState);
@@ -103,7 +103,7 @@ public sealed class LoginViewModelTests
     public async Task Connect_ServiceReturnsSuccess_ShowsChannelView()
     {
         var host = new FakeLoginViewHost();
-        var roomJoined = new ChannelJoinedResult(Guid.NewGuid(), "General", [], [], []);
+        var roomJoined = new ChannelJoinedResult(Guid.NewGuid(), "General", "voice", [], [], null);
         var serverState = new ServerStatePayload { Channels = [], CanCreateChannel = true };
         var loginService = new FakeLoginService();
         loginService.SetSuccess(roomJoined, serverState);
@@ -123,7 +123,7 @@ public sealed class LoginViewModelTests
     public async Task Connect_CertErrorRetryAccepted_ShowsChannelView()
     {
         var host = new FakeLoginViewHost { CertRetryReturnsTrue = true };
-        var roomJoined = new ChannelJoinedResult(Guid.NewGuid(), "General", [], [], []);
+        var roomJoined = new ChannelJoinedResult(Guid.NewGuid(), "General", "voice", [], [], null);
         var serverState = new ServerStatePayload { Channels = [], CanCreateChannel = true };
         var loginService = new FakeLoginService();
         loginService.SetFailure("Certificate validation failed", isCertificateError: true);
@@ -201,7 +201,7 @@ public sealed class LoginViewModelTests
         var host = new FakeLoginViewHost();
         var loginService = new FakeLoginService();
         loginService.SetSuccess(
-            new ChannelJoinedResult(Guid.NewGuid(), "General", [], [], []),
+            new ChannelJoinedResult(Guid.NewGuid(), "General", "voice", [], [], null),
             new ServerStatePayload { Channels = [], CanCreateChannel = true });
         var serverSettings = new FakeServerSettingsStore();
         var credentialStore = new FakeCredentialStore();
@@ -232,7 +232,7 @@ public sealed class LoginViewModelTests
         var host = new FakeLoginViewHost();
         var loginService = new FakeLoginService();
         loginService.SetSuccess(
-            new ChannelJoinedResult(Guid.NewGuid(), "General", [], [], []),
+            new ChannelJoinedResult(Guid.NewGuid(), "General", "voice", [], [], null),
             new ServerStatePayload { Channels = [], CanCreateChannel = true });
         var serverSettings = new FakeServerSettingsStore();
         var credentialStore = new FakeCredentialStore();

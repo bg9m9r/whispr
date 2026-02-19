@@ -22,4 +22,10 @@ public sealed class ServerOptions
     /// Session token lifetime in hours. Default 24. Tokens expire after this duration.
     /// </summary>
     public int TokenLifetimeHours { get; init; } = 24;
+
+    /// <summary>
+    /// Base64-encoded 32-byte key for message encryption at rest. Set via WHISPR_MESSAGE_ENCRYPTION_KEY.
+    /// When DatabasePath is set, required for message persistence; missing key causes startup to fail when using EF message repo.
+    /// </summary>
+    public string? MessageEncryptionKeyBase64 { get; init; }
 }

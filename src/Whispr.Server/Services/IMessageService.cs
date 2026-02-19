@@ -13,7 +13,7 @@ public interface IMessageService
     MessageRecord? SendMessage(Guid channelId, Guid senderId, string content);
 
     /// <summary>
-    /// Gets message history for a channel. Returns empty if no access.
+    /// Gets message history for a channel. Use since for messages after a time, before for older messages (e.g. scroll-up paging). Returns empty if no access.
     /// </summary>
-    IReadOnlyList<MessageRecord> GetHistory(Guid channelId, Guid requesterId, DateTimeOffset? since = null, int limit = 100);
+    IReadOnlyList<MessageRecord> GetHistory(Guid channelId, Guid requesterId, DateTimeOffset? since = null, DateTimeOffset? before = null, int limit = 100);
 }

@@ -61,6 +61,10 @@ public sealed class CreateRoomPayload
 {
     [JsonPropertyName("name")]
     public required string Name { get; init; }
+
+    /// <summary>"voice" or "text". Default voice.</summary>
+    [JsonPropertyName("type")]
+    public string? Type { get; init; }
 }
 
 /// <summary>
@@ -97,6 +101,10 @@ public sealed class ChannelInfo
 
     [JsonPropertyName("name")]
     public string Name { get; init; } = string.Empty;
+
+    /// <summary>"voice" or "text".</summary>
+    [JsonPropertyName("type")]
+    public string Type { get; init; } = "voice";
 
     [JsonPropertyName("memberIds")]
     public IReadOnlyList<Guid> MemberIds { get; init; } = [];
@@ -155,14 +163,19 @@ public sealed class RoomJoinedPayload
     [JsonPropertyName("roomName")]
     public string RoomName { get; init; } = string.Empty;
 
+    /// <summary>"voice" or "text".</summary>
+    [JsonPropertyName("type")]
+    public string Type { get; init; } = "voice";
+
     [JsonPropertyName("memberIds")]
     public required IReadOnlyList<Guid> MemberIds { get; init; }
 
     [JsonPropertyName("members")]
     public IReadOnlyList<MemberInfo>? Members { get; init; }
 
+    /// <summary>Null for text channels (no audio).</summary>
     [JsonPropertyName("keyMaterial")]
-    public required byte[] KeyMaterial { get; init; }
+    public byte[]? KeyMaterial { get; init; }
 }
 
 /// <summary>
@@ -205,6 +218,9 @@ public sealed class GetMessageHistoryPayload
 
     [JsonPropertyName("since")]
     public DateTimeOffset? Since { get; init; }
+
+    [JsonPropertyName("before")]
+    public DateTimeOffset? Before { get; init; }
 
     [JsonPropertyName("limit")]
     public int Limit { get; init; } = 100;

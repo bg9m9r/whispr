@@ -4,7 +4,7 @@ using Whispr.Server.Services;
 
 namespace Whispr.Server.Handlers;
 
-internal sealed class MessageHandler(IAuthService auth, IMessageService messages) : IControlMessageHandler
+internal sealed class MessageHandler(IAuthService auth, IMessageService messages, IChannelService channels) : IControlMessageHandler
 {
     private static readonly string[] Types = [MessageTypes.SendMessage, MessageTypes.GetMessageHistory];
 
@@ -38,6 +38,12 @@ internal sealed class MessageHandler(IAuthService auth, IMessageService messages
             await ctx.SendErrorAsync("invalid_payload", channelError!);
             return;
         }
+        var channel = channels.GetChannel(payload.ChannelId);
+        if (channel is null || channel.Type != ChannelType.Text)
+        {
+            await ctx.SendErrorAsync("access_denied", "Messages are only allowed in text channels");
+            return;
+        }
         var content = PayloadValidation.SanitizeMessageContent((payload.Content ?? "").Trim());
         if (!PayloadValidation.IsValidMessageContent(content, out var contentError))
         {
@@ -62,7 +68,7 @@ internal sealed class MessageHandler(IAuthService auth, IMessageService messages
             CreatedAt = record.CreatedAt
         };
         var bytes = ControlProtocol.Serialize(MessageTypes.MessageReceived, chatPayload);
-        await ctx.SendToChannelAsync(payload.ChannelId, bytes, null, ctx.CancellationToken);
+        await ctx.SendToUsersWithChannelAccessAsync(payload.ChannelId, bytes, null, ctx.CancellationToken);
     }
 
     private async Task HandleGetMessageHistoryAsync(ControlMessage message, ControlHandlerContext ctx)
@@ -84,7 +90,7 @@ internal sealed class MessageHandler(IAuthService auth, IMessageService messages
 
         var user = ctx.State.User!;
         var limit = Math.Clamp(payload.Limit, 1, 500);
-        var history = messages.GetHistory(payload.ChannelId, user.Id, payload.Since, limit);
+        var history = messages.GetHistory(payload.ChannelId, user.Id, payload.Since, payload.Before, limit);
 
         var chatMessages = history.Select(m => new ChatMessagePayload
         {

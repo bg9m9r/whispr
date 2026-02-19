@@ -86,9 +86,12 @@ public sealed class AuthService : IAuthService
         if (statePayload is null)
             return null;
 
-        var key = KeyDerivation.DeriveAudioKey(joinedPayload.KeyMaterial);
+        var key = joinedPayload.KeyMaterial is { Length: > 0 }
+            ? KeyDerivation.DeriveAudioKey(joinedPayload.KeyMaterial)
+            : null;
+        var type = string.Equals(joinedPayload.Type, "text", StringComparison.OrdinalIgnoreCase) ? "text" : "voice";
         var members = joinedPayload.Members ?? joinedPayload.MemberIds.Select(id => new MemberInfo { UserId = id, Username = id.ToString(), ClientId = 0 }).ToList();
-        var roomResult = new ChannelJoinedResult(joinedPayload.RoomId, joinedPayload.RoomName, joinedPayload.MemberIds, members, key);
+        var roomResult = new ChannelJoinedResult(joinedPayload.RoomId, joinedPayload.RoomName, type, joinedPayload.MemberIds, members, key);
         return (roomResult, statePayload);
     }
 
@@ -182,9 +185,12 @@ public sealed class AuthService : IAuthService
         if (payload is null)
             return null;
 
-        var key = KeyDerivation.DeriveAudioKey(payload.KeyMaterial);
+        var key = payload.KeyMaterial is { Length: > 0 }
+            ? KeyDerivation.DeriveAudioKey(payload.KeyMaterial)
+            : null;
+        var type = string.Equals(payload.Type, "text", StringComparison.OrdinalIgnoreCase) ? "text" : "voice";
         var members = payload.Members ?? payload.MemberIds.Select(id => new MemberInfo { UserId = id, Username = id.ToString(), ClientId = 0 }).ToList();
-        return new ChannelJoinedResult(payload.RoomId, payload.RoomName, payload.MemberIds, members, key);
+        return new ChannelJoinedResult(payload.RoomId, payload.RoomName, type, payload.MemberIds, members, key);
     }
 }
 
@@ -196,4 +202,6 @@ public sealed record LoginResult(bool Success, string? Error = null);
 /// <summary>
 /// Result of joining or creating a channel (wire: room_joined).
 /// </summary>
-public sealed record ChannelJoinedResult(Guid ChannelId, string ChannelName, IReadOnlyList<Guid> MemberIds, IReadOnlyList<MemberInfo> Members, byte[] AudioKey);
+/// <param name="ChannelType">"voice" or "text".</param>
+/// <param name="AudioKey">Null for text channels (no audio).</param>
+public sealed record ChannelJoinedResult(Guid ChannelId, string ChannelName, string ChannelType, IReadOnlyList<Guid> MemberIds, IReadOnlyList<MemberInfo> Members, byte[]? AudioKey);

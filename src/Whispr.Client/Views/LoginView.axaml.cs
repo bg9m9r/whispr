@@ -30,21 +30,25 @@ public partial class LoginView : UserControl, ILoginViewHost
 
     void ILoginViewHost.Close() => _window.Close();
 
-    async Task<bool> ILoginViewHost.ShowUntrustedCertWarningAsync(string host, int port)
+    async Task<(bool confirmed, bool saveDecision)> ILoginViewHost.ShowUntrustedCertWarningAsync(string host, int port)
     {
         var message = $"You are about to connect to {host}:{port} which may use a self-signed or unverified certificate.\n\n" +
                       "Only proceed if you trust this server and have verified its identity. " +
                       "Connecting to an untrusted server could expose your credentials and audio to interception.";
-        return await DialogService.ShowYesNoAsync("Security Warning", message, "Continue", "Cancel", isWarning: false);
+        return await DialogService.ShowYesNoWithSaveDecisionAsync(
+            "Security Warning", message, "Continue", "Cancel",
+            saveCheckboxText: "Save my decision for this server", isWarning: false);
     }
 
-    async Task<bool> ILoginViewHost.ShowUnverifiedCertRetryDialogAsync(string host, int port)
+    async Task<(bool confirmed, bool saveDecision)> ILoginViewHost.ShowUnverifiedCertRetryDialogAsync(string host, int port)
     {
         var message = $"The server's certificate for {host}:{port} could not be validated.\n\n" +
                       "For production servers, use a trusted certificate (e.g., from Let's Encrypt). " +
                       "Only connect anyway if you have verified this server's identity.\n\n" +
                       "Connecting to an untrusted server could expose your credentials and audio to interception.";
-        return await DialogService.ShowYesNoAsync("Certificate Error", message, "Connect anyway", "Cancel", isWarning: true);
+        return await DialogService.ShowYesNoWithSaveDecisionAsync(
+            "Certificate Error", message, "Connect anyway", "Cancel",
+            saveCheckboxText: "Save my decision for this server", isWarning: true);
     }
 
     async Task ILoginViewHost.ShowErrorAsync(string message)

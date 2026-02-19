@@ -83,6 +83,8 @@ public static class PayloadValidation
 
     /// <summary>
     /// Strips control characters from message content (keeps newline, tab, carriage return).
+    /// Unicode emoji and other supplementary characters (surrogate pairs) are preserved,
+    /// since we allow all chars with value >= 0x20 except DEL (0x7F).
     /// </summary>
     public static string SanitizeMessageContent(string content)
     {

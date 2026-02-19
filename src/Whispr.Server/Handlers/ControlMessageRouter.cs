@@ -22,7 +22,7 @@ public sealed class ControlMessageRouter(
         new UdpRegistrationHandler(auth, udpRegistry),
         new PermissionHandler(auth),
         new PingHandler(),
-        new MessageHandler(auth, messages)
+        new MessageHandler(auth, messages, channels)
     );
     private readonly ConcurrentDictionary<Guid, (Stream Stream, SessionState State)> _userControlStreams = new();
 
@@ -102,6 +102,20 @@ public sealed class ControlMessageRouter(
             await SendToUserAsync(memberId, message, ct);
     }
 
+    /// <summary>
+    /// Sends a message to all connected users who have access to the channel (for text channel broadcasts).
+    /// </summary>
+    public async Task SendToUsersWithChannelAccessAsync(Guid channelId, byte[] message, Guid? excludeUserId, CancellationToken ct = default)
+    {
+        var exclude = excludeUserId ?? Guid.Empty;
+        foreach (var userId in _userControlStreams.Keys)
+        {
+            if (userId == exclude) continue;
+            if (!auth.CanAccessChannel(userId, channelId)) continue;
+            await SendToUserAsync(userId, message, ct);
+        }
+    }
+
     public async Task HandleAsync(ControlMessage message, Stream stream, SessionState state, CancellationToken ct = default)
     {
         var ctx = new ControlHandlerContext
@@ -111,6 +125,7 @@ public sealed class ControlMessageRouter(
             CancellationToken = ct,
             SendToUserAsync = (userId, msg, c) => SendToUserAsync(userId, msg, c),
             SendToChannelAsync = (chId, msg, excl, c) => SendToChannelAsync(chId, msg, excl, c),
+            SendToUsersWithChannelAccessAsync = (chId, msg, excl, c) => SendToUsersWithChannelAccessAsync(chId, msg, excl, c),
             RegisterControlStream = (userId, s, st) => RegisterControlStream(userId, s, st),
             IsUserConnected = userId => _userControlStreams.ContainsKey(userId)
         };

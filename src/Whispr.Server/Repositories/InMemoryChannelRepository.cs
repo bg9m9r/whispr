@@ -1,3 +1,5 @@
+using Whispr.Core.Models;
+
 namespace Whispr.Server.Repositories;
 
 /// <summary>
@@ -5,7 +7,7 @@ namespace Whispr.Server.Repositories;
 /// </summary>
 public sealed class InMemoryChannelRepository : IChannelRepository
 {
-    public IReadOnlyList<(Guid Id, string Name, byte[] KeyMaterial, bool IsDefault)> LoadAll() => [];
+    public IReadOnlyList<(Guid Id, string Name, byte[] KeyMaterial, bool IsDefault, ChannelType Type)> LoadAll() => [];
 
-    public bool Insert(Guid id, string name, byte[] keyMaterial) => true;
+    public bool Insert(Guid id, string name, byte[] keyMaterial, ChannelType type) => true;
 }

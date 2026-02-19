@@ -21,7 +21,7 @@ public sealed class ChannelManager : IChannelService
     private sealed class ChannelState
     {
         public required Channel Channel { get; set; }
-        public required byte[] KeyMaterial { get; init; }
+        public byte[] KeyMaterial { get; init; } = [];
     }
 
     public ChannelManager(IChannelRepository store)
@@ -32,11 +32,11 @@ public sealed class ChannelManager : IChannelService
         if (defaultCh.Id == Guid.Empty && loaded.Count > 0)
             defaultCh = loaded[0];
         DefaultChannelId = defaultCh.Id != Guid.Empty ? defaultCh.Id : Guid.NewGuid();
-        foreach (var (id, name, keyMaterial, _) in loaded)
+        foreach (var (id, name, keyMaterial, _, type) in loaded)
         {
             _channels[id] = new ChannelState
             {
-                Channel = new Channel { Id = id, Name = name, MemberIds = [] },
+                Channel = new Channel { Id = id, Name = name, Type = type, MemberIds = [] },
                 KeyMaterial = keyMaterial
             };
         }
@@ -45,7 +45,7 @@ public sealed class ChannelManager : IChannelService
             var keyMaterial = RandomNumberGenerator.GetBytes(32);
             _channels[DefaultChannelId] = new ChannelState
             {
-                Channel = new Channel { Id = DefaultChannelId, Name = "General", MemberIds = [] },
+                Channel = new Channel { Id = DefaultChannelId, Name = "General", Type = ChannelType.Voice, MemberIds = [] },
                 KeyMaterial = keyMaterial
             };
         }
@@ -59,15 +59,16 @@ public sealed class ChannelManager : IChannelService
     /// <summary>
     /// Joins the default channel. Called when user connects.
     /// </summary>
-    public (Channel Channel, byte[] KeyMaterial)? JoinDefaultChannel(Guid userId)
+    public (Channel Channel, byte[]? KeyMaterial)? JoinDefaultChannel(Guid userId)
     {
         return JoinChannel(DefaultChannelId, userId);
     }
 
     /// <summary>
     /// Creates a new channel. Returns null if at max (10) or name invalid.
+    /// Text channels have no key material (no audio).
     /// </summary>
-    public Channel? CreateChannel(string name, Guid userId)
+    public Channel? CreateChannel(string name, ChannelType type, Guid userId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
@@ -77,9 +78,9 @@ public sealed class ChannelManager : IChannelService
                 return null;
 
             var channelId = Guid.NewGuid();
-            var keyMaterial = RandomNumberGenerator.GetBytes(32);
-            var channel = new Channel { Id = channelId, Name = name.Trim(), MemberIds = [] };
-            if (!_store.Insert(channelId, channel.Name, keyMaterial))
+            var keyMaterial = type == ChannelType.Voice ? RandomNumberGenerator.GetBytes(32) : Array.Empty<byte>();
+            var channel = new Channel { Id = channelId, Name = name.Trim(), Type = type, MemberIds = [] };
+            if (!_store.Insert(channelId, channel.Name, keyMaterial, type))
                 return null;
             _channels[channelId] = new ChannelState { Channel = channel, KeyMaterial = keyMaterial };
             return channel;
@@ -88,8 +89,9 @@ public sealed class ChannelManager : IChannelService
 
     /// <summary>
     /// Joins a channel. Leaves current channel first. Returns null if channel not found.
+    /// KeyMaterial is empty for text channels (no audio).
     /// </summary>
-    public (Channel Channel, byte[] KeyMaterial)? JoinChannel(Guid channelId, Guid userId)
+    public (Channel Channel, byte[]? KeyMaterial)? JoinChannel(Guid channelId, Guid userId)
     {
         lock (_lock)
         {
@@ -108,9 +110,10 @@ public sealed class ChannelManager : IChannelService
                 return null;
 
             members.Add(userId);
-            state.Channel = new Channel { Id = state.Channel.Id, Name = state.Channel.Name, MemberIds = members };
+            state.Channel = new Channel { Id = state.Channel.Id, Name = state.Channel.Name, Type = state.Channel.Type, MemberIds = members };
             _userToChannel[userId] = channelId;
-            return (state.Channel, state.KeyMaterial);
+            var key = state.KeyMaterial.Length > 0 ? state.KeyMaterial : null;
+            return (state.Channel, key);
         }
     }
 
@@ -134,7 +137,7 @@ public sealed class ChannelManager : IChannelService
             return null;
 
         var members = state.Channel.MemberIds.Where(m => m != userId).ToList();
-        state.Channel = new Channel { Id = state.Channel.Id, Name = state.Channel.Name, MemberIds = members };
+        state.Channel = new Channel { Id = state.Channel.Id, Name = state.Channel.Name, Type = state.Channel.Type, MemberIds = members };
         return (channelId, members);
     }
 
@@ -178,6 +181,7 @@ public sealed class ChannelManager : IChannelService
                 {
                     Id = s.Channel.Id,
                     Name = s.Channel.Name,
+                    Type = s.Channel.Type == ChannelType.Text ? "text" : "voice",
                     MemberIds = s.Channel.MemberIds
                 })
                 .ToList();

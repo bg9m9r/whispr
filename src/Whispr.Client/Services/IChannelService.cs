@@ -19,6 +19,8 @@ public interface IChannelService : IDisposable
     event Action<ChannelJoinedResult>? RoomJoinedReceived;
     event Action? RoomLeftReceived;
     event Action<int?>? PingLatencyUpdated;
+    event Action<ChatMessagePayload>? MessageReceived;
+    event Action<MessageHistoryPayload>? MessageHistoryReceived;
 
     void Start(ChannelJoinedResult roomResult, ServerStatePayload serverState);
     void Stop();
@@ -26,7 +28,7 @@ public interface IChannelService : IDisposable
     Task<uint> RegisterUdpAsync(CancellationToken ct = default);
     Task RequestServerStateAsync();
     Task<ChannelJoinedResult?> SwitchToChannelAsync(Guid channelId);
-    Task<ChannelJoinedResult?> CreateChannelAsync(string name);
+    Task<ChannelJoinedResult?> CreateChannelAsync(string name, string type = "voice");
     Task LeaveRoomAsync();
 
     Task<PermissionsListPayload?> RequestPermissionsListAsync();
@@ -41,4 +43,7 @@ public interface IChannelService : IDisposable
 
     string? GetUsernameForUserId(Guid userId);
     IReadOnlyList<MemberInfo> GetChannelMembers(Guid channelId);
+
+    Task SendMessageAsync(Guid channelId, string content, CancellationToken ct = default);
+    Task RequestMessageHistoryAsync(Guid channelId, DateTimeOffset? since = null, DateTimeOffset? before = null, int limit = 100, CancellationToken ct = default);
 }

@@ -23,4 +23,9 @@ public sealed class MessageEntity
 
     [Required]
     public DateTimeOffset CreatedAt { get; set; }
+
+    /// <summary>
+    /// UTC ticks for SQLite-friendly ORDER BY. Kept in sync with CreatedAt.
+    /// </summary>
+    public long CreatedAtTicks { get; set; }
 }

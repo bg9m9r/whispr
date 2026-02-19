@@ -16,6 +16,8 @@ public sealed class ServerTreeNode : INotifyPropertyChanged
     public uint ClientId { get; set; }
     public bool IsMe { get; init; }
     public bool IsCurrentChannel { get; set; }
+    /// <summary>"voice" or "text" for channel nodes.</summary>
+    public string? ChannelType { get; init; }
 
     private bool _isAdmin;
     public bool IsAdmin

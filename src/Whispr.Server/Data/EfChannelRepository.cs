@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Whispr.Core.Models;
 using Whispr.Server.Repositories;
 
 namespace Whispr.Server.Data;
@@ -8,16 +9,16 @@ namespace Whispr.Server.Data;
 /// </summary>
 public sealed class EfChannelRepository(IDbContextFactory<WhisprDbContext> contextFactory) : IChannelRepository
 {
-    public IReadOnlyList<(Guid Id, string Name, byte[] KeyMaterial, bool IsDefault)> LoadAll()
+    public IReadOnlyList<(Guid Id, string Name, byte[] KeyMaterial, bool IsDefault, ChannelType Type)> LoadAll()
     {
         using var ctx = contextFactory.CreateDbContext();
         return ctx.Channels.AsNoTracking()
             .ToList()
-            .Select(c => (Guid.Parse(c.Id), c.Name, c.KeyMaterial, c.IsDefault))
+            .Select(c => (Guid.Parse(c.Id), c.Name, c.KeyMaterial, c.IsDefault, (ChannelType)c.ChannelType))
             .ToList();
     }
 
-    public bool Insert(Guid id, string name, byte[] keyMaterial)
+    public bool Insert(Guid id, string name, byte[] keyMaterial, ChannelType type)
     {
         using var ctx = contextFactory.CreateDbContext();
         ctx.Channels.Add(new ChannelEntity
@@ -25,7 +26,8 @@ public sealed class EfChannelRepository(IDbContextFactory<WhisprDbContext> conte
             Id = id.ToString(),
             Name = name,
             KeyMaterial = keyMaterial,
-            IsDefault = false
+            IsDefault = false,
+            ChannelType = (int)type
         });
         try
         {

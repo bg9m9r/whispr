@@ -1,7 +1,9 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:conv="clr-namespace:Whispr.Client.Converters"
+             xmlns:models="clr-namespace:Whispr.Client.Models"
              x:Class="Whispr.Client.Views.LoginView"
+             x:Name="LoginViewRoot"
              Background="Transparent">
     <UserControl.Resources>
         <conv:InverseBoolConverter x:Key="InverseBool"/>
@@ -16,8 +18,32 @@
                     <TextBlock Text="Sign in to continue" FontSize="14" Foreground="{DynamicResource WhisprTextMuted}" HorizontalAlignment="Center"/>
                 </StackPanel>
 
-                <StackPanel Spacing="8">
+                <!-- Saved servers: one-click connect -->
+                <StackPanel IsVisible="{Binding HasSavedCredentials}" Spacing="8">
+                    <TextBlock Text="Saved servers" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource WhisprTextSecondary}"/>
+                    <ItemsControl ItemsSource="{Binding SavedServers}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="models:SavedServerItem">
+                                <Border Margin="0,2" Padding="10,8" Background="{DynamicResource WhisprSurfaceLight}" CornerRadius="6">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Grid.Column="0" Text="{Binding DisplayName}" Foreground="#e0e0e0" FontSize="13" VerticalAlignment="Center"/>
+                                        <Button Grid.Column="1" Content="Connect" Command="{Binding #LoginViewRoot.DataContext.ConnectToSavedCommand}" CommandParameter="{Binding}"
+                                                IsEnabled="{Binding #LoginViewRoot.DataContext.IsConnecting, Converter={StaticResource InverseBool}}"
+                                                Background="{DynamicResource WhisprAccent}" Foreground="#ffffff" Padding="12,6" FontSize="12"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <!-- Add new server / manual sign-in -->
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Sign in to another server" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource WhisprTextSecondary}"
+                               IsVisible="{Binding HasSavedCredentials}"/>
                     <TextBlock Text="Server" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource WhisprTextSecondary}"/>
+                </StackPanel>
+                <StackPanel Spacing="8">
                     <Grid ColumnDefinitions="*,72">
                         <TextBox x:Name="HostBox" Grid.Column="0" Watermark="localhost" Text="{Binding HostText, Mode=TwoWay}" Margin="0,0,8,0"/>
                         <TextBox x:Name="PortBox" Grid.Column="1" Watermark="Port" Text="{Binding PortText, Mode=TwoWay}"/>

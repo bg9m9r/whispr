@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
@@ -32,6 +33,8 @@ public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
         TalkButton.AddHandler(InputElement.PointerPressedEvent, OnTalkButtonPressed, handledEventsToo: true);
         TalkButton.AddHandler(InputElement.PointerReleasedEvent, OnTalkButtonReleased, handledEventsToo: true);
         TalkButton.AddHandler(InputElement.PointerCaptureLostEvent, OnTalkButtonCaptureLost, handledEventsToo: true);
+        MessageInputBox.AddHandler(InputElement.KeyDownEvent, OnMessageInputKeyDown, handledEventsToo: false);
+        MessageScroll.ScrollChanged += OnMessageScrollChanged;
     }
 
     public void RestartAudioWithNewSettings() => _viewModel.RestartAudio();
@@ -85,7 +88,7 @@ public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
         var added = e.AddedItems?.Count > 0 ? e.AddedItems[0] : null;
         if (added is not ServerTreeNode node || node.Kind != NodeKind.Channel || !node.ChannelId.HasValue)
             return;
-        _viewModel.SwitchChannelCommand.Execute(node.ChannelId.Value);
+        _ = _viewModel.SelectChannelAsync(node.ChannelId.Value, node.DisplayName, node.ChannelType ?? "voice");
     }
 
     private void OnContextRequested(object? sender, ContextRequestedEventArgs e)
@@ -124,6 +127,44 @@ public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
         ExpandAllNodesWhenReady();
     }
 
+    private void OnMessageScrollChanged(object? sender, ScrollChangedEventArgs e)
+    {
+        if (sender is not ScrollViewer scroll || !_viewModel.IsTextChannel || _viewModel.IsLoadingOlderMessages)
+            return;
+        // Load older messages when user scrolls near the top (within 80px)
+        if (scroll.Offset.Y < 80)
+            _ = _viewModel.LoadOlderMessagesAsync();
+    }
+
+    private void OnMessageInputKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter)
+            return;
+        // Shift+Enter = new line; Enter alone = send
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+            return;
+        e.Handled = true;
+        if (_viewModel.SendMessageCommand.CanExecute(null))
+            _viewModel.SendMessageCommand.Execute(null);
+    }
+
+    private void OnMessageLinkClick(object? sender, RoutedEventArgs e)
+    {
+        if (e.Source is not Button button || button.DataContext is not MessageContentSegment segment || !segment.IsLink)
+            return;
+        var url = segment.Content;
+        if (string.IsNullOrWhiteSpace(url) || (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+            return;
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            ClientLog.Info($"Failed to open link: {ex.Message}");
+        }
+    }
+
     private void ExpandAllNodesWhenReady()
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
@@ -133,11 +174,19 @@ public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
             var rootContainer = ChannelTree.TreeContainerFromItem(root);
             if (rootContainer is TreeViewItem rootItem)
                 ChannelTree.ExpandSubTree(rootItem);
+            var selectedId = _viewModel.SelectedChannelId;
+            if (selectedId.HasValue && root?.Children is { } children)
+            {
+                var channelNode = children.FirstOrDefault(n => n.ChannelId == selectedId.Value);
+                if (channelNode is not null)
+                    ChannelTree.SelectedItem = channelNode;
+            }
         }, Avalonia.Threading.DispatcherPriority.Loaded);
     }
 
     public void Dispose()
     {
+        MessageScroll.ScrollChanged -= OnMessageScrollChanged;
         _viewModel.TreeRefreshed -= ExpandAllNodesWhenReady;
         _viewModel.Dispose();
     }

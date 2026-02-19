@@ -15,11 +15,11 @@ public sealed class MessageService(IMessageRepository messages, IAuthService aut
         return messages.Add(channelId, senderId, content);
     }
 
-    public IReadOnlyList<MessageRecord> GetHistory(Guid channelId, Guid requesterId, DateTimeOffset? since = null, int limit = 100)
+    public IReadOnlyList<MessageRecord> GetHistory(Guid channelId, Guid requesterId, DateTimeOffset? since = null, DateTimeOffset? before = null, int limit = 100)
     {
         if (!auth.CanAccessChannel(requesterId, channelId))
             return [];
 
-        return messages.GetByChannel(channelId, since, Math.Clamp(limit, 1, 500));
+        return messages.GetByChannel(channelId, since, before, Math.Clamp(limit, 1, 500));
     }
 }

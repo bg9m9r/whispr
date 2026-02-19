@@ -19,16 +19,16 @@ public sealed class InMemoryMessageRepository : IMessageRepository
         return record;
     }
 
-    public IReadOnlyList<MessageRecord> GetByChannel(Guid channelId, DateTimeOffset? since = null, int limit = 100)
+    public IReadOnlyList<MessageRecord> GetByChannel(Guid channelId, DateTimeOffset? since = null, DateTimeOffset? before = null, int limit = 100)
     {
         lock (_lock)
         {
-            return _messages
-                .Where(m => m.ChannelId == channelId)
-                .Where(m => since is null || m.CreatedAt > since)
-                .OrderBy(m => m.CreatedAt)
-                .Take(limit)
-                .ToList();
+            var filtered = _messages.Where(m => m.ChannelId == channelId);
+            if (before is { } b)
+                return filtered.Where(m => m.CreatedAt < b).OrderByDescending(m => m.CreatedAt).Take(limit).OrderBy(m => m.CreatedAt).ToList();
+            if (since is { } s)
+                return filtered.Where(m => m.CreatedAt > s).OrderBy(m => m.CreatedAt).Take(limit).ToList();
+            return filtered.OrderByDescending(m => m.CreatedAt).Take(limit).OrderBy(m => m.CreatedAt).ToList();
         }
     }
 }

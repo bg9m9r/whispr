@@ -11,6 +11,10 @@ public sealed class CredentialStore : ICredentialStore
 
     public CredentialStore()
     {
+        // On Linux, GCM defaults to no credential store (unset). Set secretservice so libsecret is used.
+        if (OperatingSystem.IsLinux() && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GCM_CREDENTIAL_STORE")))
+            Environment.SetEnvironmentVariable("GCM_CREDENTIAL_STORE", "secretservice", EnvironmentVariableTarget.Process);
+
         _gcmStore = CredentialManager.Create("whispr");
     }
 

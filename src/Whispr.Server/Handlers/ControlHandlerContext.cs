@@ -14,6 +14,8 @@ public sealed class ControlHandlerContext
     public CancellationToken CancellationToken { get; init; }
     public required Func<Guid, byte[], CancellationToken, Task> SendToUserAsync { get; init; }
     public required Func<Guid, byte[], Guid?, CancellationToken, Task> SendToChannelAsync { get; init; }
+    /// <summary>Sends to all connected users who have access to the channel (e.g. for text channel messages).</summary>
+    public required Func<Guid, byte[], Guid?, CancellationToken, Task> SendToUsersWithChannelAccessAsync { get; init; }
     public required Action<Guid, Stream, SessionState> RegisterControlStream { get; init; }
     public required Func<Guid, bool> IsUserConnected { get; init; }
 

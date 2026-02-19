@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Layout;
 
 namespace Whispr.Client.Services;
 
@@ -45,6 +46,47 @@ public static class DialogService
         noBtn.Click += (_, _) => { tcs.TrySetResult(false); dialog.Close(); };
         dialog.Content = panel;
         dialog.Closed += (_, _) => tcs.TrySetResult(false);
+        await dialog.ShowDialog(Owner!);
+        return await tcs.Task;
+    }
+
+    /// <summary>
+    /// Shows a Yes/No dialog with an optional "Save my decision" checkbox.
+    /// Returns (confirmed, saveDecision). saveDecision is only meaningful when confirmed is true.
+    /// </summary>
+    public static async Task<(bool confirmed, bool saveDecision)> ShowYesNoWithSaveDecisionAsync(
+        string title, string message, string yesText = "Continue", string noText = "Cancel",
+        string saveCheckboxText = "Save my decision for this server", bool isWarning = false)
+    {
+        var tcs = new TaskCompletionSource<(bool, bool)>();
+        var saveCheck = new CheckBox { Content = saveCheckboxText, IsChecked = false };
+        var dialog = new Window
+        {
+            Title = title,
+            SizeToContent = SizeToContent.WidthAndHeight,
+            MinWidth = 320,
+            MaxWidth = 450,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = (Avalonia.Media.IBrush?)FindResource("WhisprSurface") ?? Avalonia.Media.Brushes.Gray
+        };
+        var messageBlock = new TextBlock
+        {
+            Text = message,
+            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+            Foreground = isWarning
+                ? (Avalonia.Media.IBrush?)FindResource("WhisprDanger") ?? Avalonia.Media.Brushes.OrangeRed
+                : (Avalonia.Media.IBrush?)FindResource("WhisprTextSecondary") ?? Avalonia.Media.Brushes.White
+        };
+        var yesBtn = new Button { Content = yesText, Width = yesText.Length > 10 ? 120 : 100 };
+        var noBtn = new Button { Content = noText, Width = 100 };
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
+        buttons.Children.Add(yesBtn);
+        buttons.Children.Add(noBtn);
+        var panel = new StackPanel { Spacing = 16, Margin = new Avalonia.Thickness(24), Children = { messageBlock, saveCheck, buttons } };
+        yesBtn.Click += (_, _) => { tcs.TrySetResult((true, saveCheck.IsChecked == true)); dialog.Close(); };
+        noBtn.Click += (_, _) => { tcs.TrySetResult((false, false)); dialog.Close(); };
+        dialog.Content = panel;
+        dialog.Closed += (_, _) => tcs.TrySetResult((false, false));
         await dialog.ShowDialog(Owner!);
         return await tcs.Task;
     }
