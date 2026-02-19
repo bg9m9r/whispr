@@ -17,8 +17,8 @@ public sealed class FakeAuthService : IAuthService
     public Task<LoginResult> LoginAsync(string username, string password, CancellationToken ct = default) =>
         Task.FromResult(new LoginResult(false, "FakeAuthService does not perform real login"));
 
-    public Task<(RoomJoinedResult RoomJoined, ServerStatePayload ServerState)?> ReadInitialServerStateAsync(CancellationToken ct = default) =>
-        Task.FromResult<(RoomJoinedResult, ServerStatePayload)?>(null);
+    public Task<(ChannelJoinedResult ChannelJoined, ServerStatePayload ServerState)?> ReadInitialServerStateAsync(CancellationToken ct = default) =>
+        Task.FromResult<(ChannelJoinedResult, ServerStatePayload)?>(null);
 
     public Task SendLeaveRoomAsync(CancellationToken ct = default) => Task.CompletedTask;
 

@@ -19,6 +19,11 @@ public sealed class AuthService : IAuthService
     private const int HashSize = 32;
     private const int Iterations = 100_000;
 
+    /// <summary>
+    /// Token lifetime. Tokens expire after this duration.
+    /// </summary>
+    private static readonly TimeSpan TokenLifetime = TimeSpan.FromHours(24);
+
     public AuthService(IUserRepository userRepo, IPermissionRepository permissionRepo)
     {
         _userRepo = userRepo;
@@ -84,7 +89,14 @@ public sealed class AuthService : IAuthService
     {
         if (string.IsNullOrWhiteSpace(token))
             return null;
-        return _sessions.TryGetValue(token, out var session) ? session.User : null;
+        if (!_sessions.TryGetValue(token, out var session))
+            return null;
+        if (DateTime.UtcNow - session.IssuedAt > TokenLifetime)
+        {
+            _sessions.TryRemove(token, out _);
+            return null;
+        }
+        return session.User;
     }
 
     public void RevokeToken(string token) => _sessions.TryRemove(token, out _);

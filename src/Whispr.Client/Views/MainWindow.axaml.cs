@@ -113,11 +113,11 @@ public partial class MainWindow : Window
         SetContent(new LoginView(this));
     }
 
-    public void ShowChannelView(ConnectionService connection, AuthService auth, RoomJoinedResult roomResult, ServerStatePayload serverState, string serverHost)
+    public void ShowChannelView(ConnectionService connection, AuthService auth, ChannelJoinedResult channelResult, ServerStatePayload serverState, string serverHost)
     {
         _connection = connection;
         _auth = auth;
         _serverHost = serverHost;
-        SetContent(new ChannelView(this, connection, auth, roomResult, serverState, serverHost));
+        SetContent(new ChannelView(this, connection, auth, channelResult, serverState, serverHost));
     }
 }

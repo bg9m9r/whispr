@@ -16,6 +16,7 @@ public sealed class WhisprDbContext(DbContextOptions<WhisprDbContext> options) :
     public DbSet<ChannelEntity> Channels => Set<ChannelEntity>();
     public DbSet<ChannelRolePermissionEntity> ChannelRolePermissions => Set<ChannelRolePermissionEntity>();
     public DbSet<ChannelUserPermissionEntity> ChannelUserPermissions => Set<ChannelUserPermissionEntity>();
+    public DbSet<MessageEntity> Messages => Set<MessageEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

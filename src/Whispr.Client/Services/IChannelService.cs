@@ -8,7 +8,7 @@ namespace Whispr.Client.Services;
 public interface IChannelService : IDisposable
 {
     ServerStatePayload ServerState { get; }
-    RoomJoinedResult RoomResult { get; }
+    ChannelJoinedResult ChannelResult { get; }
     IReadOnlyDictionary<Guid, uint> UserIdToClientId { get; }
     IReadOnlyDictionary<Guid, string> Members { get; }
 
@@ -16,16 +16,16 @@ public interface IChannelService : IDisposable
     int? PingLatencyMs { get; }
 
     event Action<ServerStatePayload>? ServerStateReceived;
-    event Action<RoomJoinedResult>? RoomJoinedReceived;
+    event Action<ChannelJoinedResult>? RoomJoinedReceived;
     event Action? RoomLeftReceived;
     event Action<int?>? PingLatencyUpdated;
 
-    void Start(RoomJoinedResult roomResult, ServerStatePayload serverState);
+    void Start(ChannelJoinedResult roomResult, ServerStatePayload serverState);
     void Stop();
 
     Task RequestServerStateAsync();
-    Task<RoomJoinedResult?> SwitchToChannelAsync(Guid channelId);
-    Task<RoomJoinedResult?> CreateChannelAsync(string name);
+    Task<ChannelJoinedResult?> SwitchToChannelAsync(Guid channelId);
+    Task<ChannelJoinedResult?> CreateChannelAsync(string name);
     Task LeaveRoomAsync();
 
     Task<PermissionsListPayload?> RequestPermissionsListAsync();

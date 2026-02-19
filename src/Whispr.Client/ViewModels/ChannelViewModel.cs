@@ -22,7 +22,7 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
     private readonly string _serverHost;
     private readonly Guid _myUserId;
 
-    private RoomJoinedResult _roomResult;
+    private ChannelJoinedResult _channelResult;
     private ServerTreeNode _rootNode = null!;
     private AudioService? _audioService;
     private System.Timers.Timer? _uiTimer;
@@ -91,14 +91,14 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
     public ObservableCollection<PermissionTargetItem> PermissionTargetItems { get; } = new();
 
     public ChannelViewModel(IChannelService channelService, IAuthService auth, IChannelViewHost host,
-        RoomJoinedResult roomResult, ServerStatePayload serverState, string serverHost)
+        ChannelJoinedResult channelResult, ServerStatePayload serverState, string serverHost)
     {
         _channelService = channelService;
         _auth = auth;
         _host = host;
         _serverHost = serverHost;
         _myUserId = auth.User?.Id ?? Guid.Empty;
-        _roomResult = roomResult;
+        _channelResult = channelResult;
 
         _channelService.ServerStateReceived += OnServerStateReceived;
         _channelService.RoomJoinedReceived += OnRoomJoinedReceived;
@@ -106,7 +106,7 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
         _channelService.PingLatencyUpdated += OnPingLatencyUpdated;
 
         BuildTree();
-        CurrentChannelName = roomResult.RoomName;
+        CurrentChannelName = channelResult.ChannelName;
         CanCreateChannel = serverState.CanCreateChannel;
         _ = EnterRoomAsync();
     }
@@ -136,11 +136,11 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
         CanCreateChannel = state.CanCreateChannel;
     }
 
-    private void OnRoomJoinedReceived(RoomJoinedResult result)
+    private void OnRoomJoinedReceived(ChannelJoinedResult result)
     {
-        _roomResult = result;
+        _channelResult = result;
         StopAudio();
-        CurrentChannelName = result.RoomName;
+        CurrentChannelName = result.ChannelName;
         _ = EnterRoomAsync();
         _ = _channelService.RequestServerStateAsync();
     }
@@ -177,7 +177,7 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
                 DisplayName = ch.Name,
                 Kind = NodeKind.Channel,
                 ChannelId = ch.Id,
-                IsCurrentChannel = ch.Id == _roomResult.RoomId
+                IsCurrentChannel = ch.Id == _channelResult.ChannelId
             };
 
             foreach (var m in ch.Members)
@@ -207,7 +207,7 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
             var channelNode = _rootNode.Children.FirstOrDefault(n => n.ChannelId == ch.Id);
             if (channelNode is null) continue;
 
-            channelNode.IsCurrentChannel = ch.Id == _roomResult.RoomId;
+            channelNode.IsCurrentChannel = ch.Id == _channelResult.ChannelId;
 
             var existingUserIds = new HashSet<Guid>(channelNode.Children.Select(c => c.UserId!.Value));
             var currentUserIds = new HashSet<Guid>(ch.MemberIds);
@@ -291,7 +291,7 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
             var resolvedCapture = ResolveCaptureDevice(audioBackend, captureDevice);
             var resolvedPlayback = ResolvePlaybackDevice(audioBackend, playbackDevice);
 
-            _audioService.Start(_serverHost, AudioPort, clientId, _roomResult.AudioKey,
+            _audioService.Start(_serverHost, AudioPort, clientId, _channelResult.AudioKey,
                 captureDeviceName: resolvedCapture, playbackDeviceName: resolvedPlayback, pushToTalk: pushToTalk, voiceActivated: voiceActivated, micCutoffDelayMs: micCutoffDelayMs,
                 noiseSuppression: noiseSuppression, noiseGateOpen: noiseGateOpen, noiseGateClose: noiseGateClose, noiseGateHoldMs: noiseGateHoldMs);
 
@@ -326,7 +326,7 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private async Task SwitchChannel(Guid channelId)
     {
-        if (channelId == _roomResult.RoomId) return;
+        if (channelId == _channelResult.ChannelId) return;
 
         CanCreateChannel = false;
         try
@@ -334,9 +334,9 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
             var result = await _channelService.SwitchToChannelAsync(channelId);
             if (result is not null)
             {
-                _roomResult = result;
+                _channelResult = result;
                 StopAudio();
-                CurrentChannelName = result.RoomName;
+                CurrentChannelName = result.ChannelName;
                 _ = EnterRoomAsync();
             }
         }
@@ -400,9 +400,9 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
             var result = await _channelService.CreateChannelAsync(name);
             if (result is not null)
             {
-                _roomResult = result;
+                _channelResult = result;
                 StopAudio();
-                CurrentChannelName = result.RoomName;
+                CurrentChannelName = result.ChannelName;
                 _ = EnterRoomAsync();
             }
         }

@@ -178,7 +178,7 @@ public sealed partial class LoginViewModel : ObservableObject
                         var retrySuccess = (ConnectSuccess)retryOutcome;
                         if (RememberMe)
                             SaveCredentials(host, port, username, password);
-                        _host.ShowChannelView(retrySuccess.Connection, retrySuccess.Auth, retrySuccess.RoomJoined, retrySuccess.ServerState, host);
+                        _host.ShowChannelView(retrySuccess.Connection, retrySuccess.Auth, retrySuccess.ChannelJoined, retrySuccess.ServerState, host);
                     }
                 }
                 else
@@ -192,7 +192,7 @@ public sealed partial class LoginViewModel : ObservableObject
             var success = (ConnectSuccess)outcome;
             if (RememberMe)
                 SaveCredentials(host, port, username, password);
-            _host.ShowChannelView(success.Connection, success.Auth, success.RoomJoined, success.ServerState, host);
+            _host.ShowChannelView(success.Connection, success.Auth, success.ChannelJoined, success.ServerState, host);
         }
         catch (Exception ex)
         {

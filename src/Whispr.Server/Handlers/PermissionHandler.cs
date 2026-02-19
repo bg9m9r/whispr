@@ -1,14 +1,45 @@
 using Whispr.Core.Models;
 using Whispr.Core.Protocol;
 using Whispr.Server.Services;
+using MessageTypes = Whispr.Core.Models.MessageTypes;
 
 namespace Whispr.Server.Handlers;
 
-internal sealed class PermissionHandler(IAuthService auth)
+internal sealed class PermissionHandler(IAuthService auth) : IControlMessageHandler
 {
-    public async Task HandleListPermissionsAsync(ControlHandlerContext ctx)
+    private static readonly string[] Types =
+    [
+        MessageTypes.ListPermissions,
+        MessageTypes.ListRoles,
+        MessageTypes.GetUserPermissions,
+        MessageTypes.SetUserPermission,
+        MessageTypes.SetUserRole,
+        MessageTypes.GetChannelPermissions,
+        MessageTypes.SetChannelRolePermission,
+        MessageTypes.SetChannelUserPermission
+    ];
+
+    public IReadOnlyList<string> HandledMessageTypes { get; } = Types;
+
+    public Task HandleAsync(ControlMessage message, ControlHandlerContext ctx)
     {
-        if (!await RequireAdminAsync(ctx))
+        return message.Type switch
+        {
+            MessageTypes.ListPermissions => HandleListPermissionsAsync(ctx),
+            MessageTypes.ListRoles => HandleListRolesAsync(ctx),
+            MessageTypes.GetUserPermissions => HandleGetUserPermissionsAsync(message, ctx),
+            MessageTypes.SetUserPermission => HandleSetUserPermissionAsync(message, ctx),
+            MessageTypes.SetUserRole => HandleSetUserRoleAsync(message, ctx),
+            MessageTypes.GetChannelPermissions => HandleGetChannelPermissionsAsync(message, ctx),
+            MessageTypes.SetChannelRolePermission => HandleSetChannelRolePermissionAsync(message, ctx),
+            MessageTypes.SetChannelUserPermission => HandleSetChannelUserPermissionAsync(message, ctx),
+            _ => Task.CompletedTask
+        };
+    }
+
+    private async Task HandleListPermissionsAsync(ControlHandlerContext ctx)
+    {
+        if (!await HandlerAuthHelper.RequireAdminAsync(auth, ctx))
             return;
 
         var perms = auth.ListPermissions();
@@ -20,9 +51,9 @@ internal sealed class PermissionHandler(IAuthService auth)
         await ctx.Stream.WriteAsync(bytes, ctx.CancellationToken);
     }
 
-    public async Task HandleListRolesAsync(ControlHandlerContext ctx)
+    private async Task HandleListRolesAsync(ControlHandlerContext ctx)
     {
-        if (!await RequireAdminAsync(ctx))
+        if (!await HandlerAuthHelper.RequireAdminAsync(auth, ctx))
             return;
 
         var roles = auth.ListRoles();
@@ -43,9 +74,9 @@ internal sealed class PermissionHandler(IAuthService auth)
         await ctx.Stream.WriteAsync(bytes, ctx.CancellationToken);
     }
 
-    public async Task HandleGetUserPermissionsAsync(ControlMessage message, ControlHandlerContext ctx)
+    private async Task HandleGetUserPermissionsAsync(ControlMessage message, ControlHandlerContext ctx)
     {
-        if (!await RequireAdminAsync(ctx))
+        if (!await HandlerAuthHelper.RequireAdminAsync(auth, ctx))
             return;
 
         var payload = ControlProtocol.DeserializePayload<GetUserPermissionsPayload>(message);
@@ -69,9 +100,9 @@ internal sealed class PermissionHandler(IAuthService auth)
         await ctx.Stream.WriteAsync(bytes, ctx.CancellationToken);
     }
 
-    public async Task HandleSetUserPermissionAsync(ControlMessage message, ControlHandlerContext ctx)
+    private async Task HandleSetUserPermissionAsync(ControlMessage message, ControlHandlerContext ctx)
     {
-        if (!await RequireAdminAsync(ctx))
+        if (!await HandlerAuthHelper.RequireAdminAsync(auth, ctx))
             return;
 
         var payload = ControlProtocol.DeserializePayload<SetUserPermissionPayload>(message);
@@ -102,9 +133,9 @@ internal sealed class PermissionHandler(IAuthService auth)
         await ctx.Stream.WriteAsync(response, ctx.CancellationToken);
     }
 
-    public async Task HandleSetUserRoleAsync(ControlMessage message, ControlHandlerContext ctx)
+    private async Task HandleSetUserRoleAsync(ControlMessage message, ControlHandlerContext ctx)
     {
-        if (!await RequireAdminAsync(ctx))
+        if (!await HandlerAuthHelper.RequireAdminAsync(auth, ctx))
             return;
 
         var payload = ControlProtocol.DeserializePayload<SetUserRolePayload>(message);
@@ -128,9 +159,9 @@ internal sealed class PermissionHandler(IAuthService auth)
         await ctx.Stream.WriteAsync(response, ctx.CancellationToken);
     }
 
-    public async Task HandleGetChannelPermissionsAsync(ControlMessage message, ControlHandlerContext ctx)
+    private async Task HandleGetChannelPermissionsAsync(ControlMessage message, ControlHandlerContext ctx)
     {
-        if (!await RequireAdminAsync(ctx))
+        if (!await HandlerAuthHelper.RequireAdminAsync(auth, ctx))
             return;
 
         var payload = ControlProtocol.DeserializePayload<GetChannelPermissionsPayload>(message);
@@ -158,9 +189,9 @@ internal sealed class PermissionHandler(IAuthService auth)
         await ctx.Stream.WriteAsync(bytes, ctx.CancellationToken);
     }
 
-    public async Task HandleSetChannelRolePermissionAsync(ControlMessage message, ControlHandlerContext ctx)
+    private async Task HandleSetChannelRolePermissionAsync(ControlMessage message, ControlHandlerContext ctx)
     {
-        if (!await RequireAdminAsync(ctx))
+        if (!await HandlerAuthHelper.RequireAdminAsync(auth, ctx))
             return;
 
         var payload = ControlProtocol.DeserializePayload<SetChannelRolePermissionPayload>(message);
@@ -187,9 +218,9 @@ internal sealed class PermissionHandler(IAuthService auth)
         await ctx.Stream.WriteAsync(response, ctx.CancellationToken);
     }
 
-    public async Task HandleSetChannelUserPermissionAsync(ControlMessage message, ControlHandlerContext ctx)
+    private async Task HandleSetChannelUserPermissionAsync(ControlMessage message, ControlHandlerContext ctx)
     {
-        if (!await RequireAdminAsync(ctx))
+        if (!await HandlerAuthHelper.RequireAdminAsync(auth, ctx))
             return;
 
         var payload = ControlProtocol.DeserializePayload<SetChannelUserPermissionPayload>(message);
@@ -216,23 +247,4 @@ internal sealed class PermissionHandler(IAuthService auth)
         await ctx.Stream.WriteAsync(response, ctx.CancellationToken);
     }
 
-    private async Task<bool> RequireAdminAsync(ControlHandlerContext ctx)
-    {
-        if (ctx.State.User is null || ctx.State.Token is null)
-        {
-            await ctx.SendErrorAsync("unauthorized", "Login required");
-            return false;
-        }
-        if (auth.ValidateToken(ctx.State.Token) is null)
-        {
-            await ctx.SendErrorAsync("invalid_token", "Session expired");
-            return false;
-        }
-        if (!auth.IsAdmin(ctx.State.User.Id))
-        {
-            await ctx.SendErrorAsync("forbidden", "Admin required");
-            return false;
-        }
-        return true;
-    }
 }

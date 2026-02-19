@@ -9,7 +9,7 @@ namespace Whispr.Client.ViewModels;
 /// </summary>
 public interface ILoginViewHost
 {
-    void ShowChannelView(ConnectionService connection, AuthService auth, RoomJoinedResult roomJoined, ServerStatePayload serverState, string host);
+    void ShowChannelView(ConnectionService connection, AuthService auth, ChannelJoinedResult channelJoined, ServerStatePayload serverState, string host);
     void Close();
     Task<bool> ShowUntrustedCertWarningAsync(string host, int port);
     Task<bool> ShowUnverifiedCertRetryDialogAsync(string host, int port);

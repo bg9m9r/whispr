@@ -5,17 +5,48 @@ using Whispr.Server.Services;
 
 namespace Whispr.Server.Handlers;
 
-internal sealed class ChannelHandler(IAuthService auth, IChannelService channels, UdpEndpointRegistry udpRegistry)
+internal sealed class ChannelHandler(IAuthService auth, IChannelService channels, UdpEndpointRegistry udpRegistry) : IControlMessageHandler
 {
-    public async Task HandleCreateChannelAsync(ControlMessage message, ControlHandlerContext ctx)
+    private static readonly string[] Types =
+    [
+        MessageTypes.CreateRoom,
+        MessageTypes.CreateChannel,
+        MessageTypes.JoinRoom,
+        MessageTypes.JoinChannel,
+        MessageTypes.LeaveRoom,
+        MessageTypes.RequestRoomList,
+        MessageTypes.RequestServerState
+    ];
+
+    public IReadOnlyList<string> HandledMessageTypes { get; } = Types;
+
+    public Task HandleAsync(ControlMessage message, ControlHandlerContext ctx)
     {
-        if (!await RequireAuthAsync(ctx))
+        return message.Type switch
+        {
+            MessageTypes.CreateRoom or MessageTypes.CreateChannel => HandleCreateChannelAsync(message, ctx),
+            MessageTypes.JoinRoom or MessageTypes.JoinChannel => HandleJoinChannelAsync(message, ctx),
+            MessageTypes.LeaveRoom => HandleLeaveChannelAsync(ctx),
+            MessageTypes.RequestRoomList => HandleRequestRoomListAsync(ctx),
+            MessageTypes.RequestServerState => HandleRequestServerStateAsync(ctx),
+            _ => Task.CompletedTask
+        };
+    }
+
+    private async Task HandleCreateChannelAsync(ControlMessage message, ControlHandlerContext ctx)
+    {
+        if (!await HandlerAuthHelper.RequireAuthAsync(auth, ctx))
             return;
 
         var payload = ControlProtocol.DeserializePayload<CreateRoomPayload>(message);
         if (payload is null)
         {
             await ctx.SendErrorAsync("invalid_payload", "CreateChannel payload required");
+            return;
+        }
+        if (!PayloadValidation.IsValidChannelName(payload.Name, out var nameError))
+        {
+            await ctx.SendErrorAsync("invalid_payload", nameError!);
             return;
         }
 
@@ -30,7 +61,7 @@ internal sealed class ChannelHandler(IAuthService auth, IChannelService channels
         var leaveResult = channels.LeaveChannel(user.Id);
         if (leaveResult is not null)
         {
-            var (_, remainingMembers) = leaveResult.Value;
+            var (oldChannelId, _) = leaveResult.Value;
             var clientId = ctx.State.ClientId ?? 0;
             ctx.State.RoomId = null;
             if (ctx.State.ClientId.HasValue)
@@ -44,8 +75,7 @@ internal sealed class ChannelHandler(IAuthService auth, IChannelService channels
                 Username = user.Username,
                 ClientId = clientId
             });
-            foreach (var memberId in remainingMembers)
-                await ctx.SendToUserAsync(memberId, memberLeft, ctx.CancellationToken);
+            await ctx.SendToChannelAsync(oldChannelId, memberLeft, null, ctx.CancellationToken);
         }
 
         var result = channels.JoinChannel(channel.Id, user.Id);
@@ -77,9 +107,9 @@ internal sealed class ChannelHandler(IAuthService auth, IChannelService channels
         await ctx.Stream.WriteAsync(response, ctx.CancellationToken);
     }
 
-    public async Task HandleJoinChannelAsync(ControlMessage message, ControlHandlerContext ctx)
+    private async Task HandleJoinChannelAsync(ControlMessage message, ControlHandlerContext ctx)
     {
-        if (!await RequireAuthAsync(ctx))
+        if (!await HandlerAuthHelper.RequireAuthAsync(auth, ctx))
             return;
 
         var payload = ControlProtocol.DeserializePayload<JoinRoomPayload>(message);
@@ -88,12 +118,17 @@ internal sealed class ChannelHandler(IAuthService auth, IChannelService channels
             await ctx.SendErrorAsync("invalid_payload", "JoinRoom payload required");
             return;
         }
+        if (!PayloadValidation.IsValidChannelId(payload.RoomId, out var channelError))
+        {
+            await ctx.SendErrorAsync("invalid_payload", channelError!);
+            return;
+        }
 
         var user = ctx.State.User!;
         var leaveResult = channels.LeaveChannel(user.Id);
         if (leaveResult is not null)
         {
-            var (oldRoomId, remainingMembers) = leaveResult.Value;
+            var (oldRoomId, _) = leaveResult.Value;
             var clientId = ctx.State.ClientId ?? 0;
             ctx.State.RoomId = null;
             if (ctx.State.ClientId.HasValue)
@@ -108,8 +143,7 @@ internal sealed class ChannelHandler(IAuthService auth, IChannelService channels
                 Username = user.Username,
                 ClientId = clientId
             });
-            foreach (var memberId in remainingMembers)
-                await ctx.SendToUserAsync(memberId, memberLeft, ctx.CancellationToken);
+            await ctx.SendToChannelAsync(oldRoomId, memberLeft, null, ctx.CancellationToken);
             ServerLog.Info($"Join room: {user.Username} left previous room {oldRoomId}");
         }
 
@@ -155,16 +189,12 @@ internal sealed class ChannelHandler(IAuthService auth, IChannelService channels
             Username = user.Username,
             ClientId = 0
         });
-        foreach (var memberId in room.MemberIds)
-        {
-            if (memberId == user.Id) continue;
-            await ctx.SendToUserAsync(memberId, memberJoined, ctx.CancellationToken);
-        }
+        await ctx.SendToChannelAsync(room.Id, memberJoined, user.Id, ctx.CancellationToken);
     }
 
-    public async Task HandleLeaveChannelAsync(ControlHandlerContext ctx)
+    private async Task HandleLeaveChannelAsync(ControlHandlerContext ctx)
     {
-        if (!await RequireAuthAsync(ctx))
+        if (!await HandlerAuthHelper.RequireAuthAsync(auth, ctx))
             return;
 
         var user = ctx.State.User!;
@@ -185,7 +215,7 @@ internal sealed class ChannelHandler(IAuthService auth, IChannelService channels
         }
         ctx.State.UdpEndpoint = null;
 
-        var (roomId, remainingMembers) = result.Value;
+        var (roomId, _) = result.Value;
 
         var leaveResponse = ControlProtocol.Serialize(MessageTypes.RoomLeft, new { RoomId = roomId });
         await ctx.Stream.WriteAsync(leaveResponse, ctx.CancellationToken);
@@ -196,15 +226,12 @@ internal sealed class ChannelHandler(IAuthService auth, IChannelService channels
             Username = user.Username,
             ClientId = clientId
         });
-        foreach (var memberId in remainingMembers)
-        {
-            await ctx.SendToUserAsync(memberId, memberLeft, ctx.CancellationToken);
-        }
+        await ctx.SendToChannelAsync(roomId, memberLeft, null, ctx.CancellationToken);
     }
 
-    public async Task HandleRequestRoomListAsync(ControlHandlerContext ctx)
+    private async Task HandleRequestRoomListAsync(ControlHandlerContext ctx)
     {
-        if (!await RequireAuthAsync(ctx))
+        if (!await HandlerAuthHelper.RequireAuthAsync(auth, ctx))
             return;
 
         var channels1 = channels.ListChannels();
@@ -213,9 +240,9 @@ internal sealed class ChannelHandler(IAuthService auth, IChannelService channels
         await ctx.Stream.WriteAsync(response, ctx.CancellationToken);
     }
 
-    public async Task HandleRequestServerStateAsync(ControlHandlerContext ctx)
+    private async Task HandleRequestServerStateAsync(ControlHandlerContext ctx)
     {
-        if (!await RequireAuthAsync(ctx))
+        if (!await HandlerAuthHelper.RequireAuthAsync(auth, ctx))
             return;
 
         var user = ctx.State.User!;
@@ -240,18 +267,4 @@ internal sealed class ChannelHandler(IAuthService auth, IChannelService channels
         await ctx.Stream.WriteAsync(response, ctx.CancellationToken);
     }
 
-    private async Task<bool> RequireAuthAsync(ControlHandlerContext ctx)
-    {
-        if (ctx.State.User is null || ctx.State.Token is null)
-        {
-            await ctx.SendErrorAsync("unauthorized", "Login required");
-            return false;
-        }
-        if (auth.ValidateToken(ctx.State.Token) is null)
-        {
-            await ctx.SendErrorAsync("invalid_token", "Session expired");
-            return false;
-        }
-        return true;
-    }
 }

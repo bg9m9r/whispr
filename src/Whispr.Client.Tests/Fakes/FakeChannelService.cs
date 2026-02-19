@@ -11,7 +11,7 @@ namespace Whispr.Client.Tests.Fakes;
 public sealed class FakeChannelService : IChannelService
 {
     private ServerStatePayload _serverState = new() { Channels = [] };
-    private RoomJoinedResult? _roomResult;
+    private ChannelJoinedResult? _channelResult;
 
     public ServerStatePayload ServerState
     {
@@ -19,14 +19,14 @@ public sealed class FakeChannelService : IChannelService
         set => _serverState = value;
     }
 
-    public RoomJoinedResult RoomResult =>
-        _roomResult ?? throw new InvalidOperationException("RoomResult not set. Call SetRoomResult first.");
+    public ChannelJoinedResult ChannelResult =>
+        _channelResult ?? throw new InvalidOperationException("ChannelResult not set. Call SetChannelResult first.");
 
     public IReadOnlyDictionary<Guid, uint> UserIdToClientId { get; } = new Dictionary<Guid, uint>();
     public IReadOnlyDictionary<Guid, string> Members { get; } = new Dictionary<Guid, string>();
 
     public event Action<ServerStatePayload>? ServerStateReceived;
-    public event Action<RoomJoinedResult>? RoomJoinedReceived;
+    public event Action<ChannelJoinedResult>? RoomJoinedReceived;
     public event Action? RoomLeftReceived;
     public event Action<int?>? PingLatencyUpdated;
 
@@ -37,16 +37,16 @@ public sealed class FakeChannelService : IChannelService
     private readonly Dictionary<Guid, UserPermissionsPayload> _userPermissions = new();
     private readonly Dictionary<Guid, ChannelPermissionsPayload> _channelPermissions = new();
 
-    public void SetRoomResult(RoomJoinedResult result) => _roomResult = result;
+    public void SetChannelResult(ChannelJoinedResult result) => _channelResult = result;
 
     public void SetPermissions(PermissionsListPayload payload) => _permissionsList = payload;
     public void SetRoles(RolesListPayload payload) => _rolesList = payload;
     public void SetUserPermissions(Guid userId, UserPermissionsPayload payload) => _userPermissions[userId] = payload;
     public void SetChannelPermissions(Guid channelId, ChannelPermissionsPayload payload) => _channelPermissions[channelId] = payload;
 
-    public void Start(RoomJoinedResult roomResult, ServerStatePayload serverState)
+    public void Start(ChannelJoinedResult roomResult, ServerStatePayload serverState)
     {
-        _roomResult = roomResult;
+        _channelResult = roomResult;
         _serverState = serverState;
     }
 
@@ -54,11 +54,11 @@ public sealed class FakeChannelService : IChannelService
 
     public Task RequestServerStateAsync() => Task.CompletedTask;
 
-    public Task<RoomJoinedResult?> SwitchToChannelAsync(Guid channelId) =>
-        Task.FromResult<RoomJoinedResult?>(_roomResult);
+    public Task<ChannelJoinedResult?> SwitchToChannelAsync(Guid channelId) =>
+        Task.FromResult<ChannelJoinedResult?>(_channelResult);
 
-    public Task<RoomJoinedResult?> CreateChannelAsync(string name) =>
-        Task.FromResult<RoomJoinedResult?>(_roomResult);
+    public Task<ChannelJoinedResult?> CreateChannelAsync(string name) =>
+        Task.FromResult<ChannelJoinedResult?>(_channelResult);
 
     public Task LeaveRoomAsync() => Task.CompletedTask;
 

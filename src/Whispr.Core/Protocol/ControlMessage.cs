@@ -55,7 +55,7 @@ public sealed class LoginResponsePayload
 }
 
 /// <summary>
-/// Strongly-typed payload for create room.
+/// Payload for create channel (wire: create_room/create_channel).
 /// </summary>
 public sealed class CreateRoomPayload
 {
@@ -64,7 +64,7 @@ public sealed class CreateRoomPayload
 }
 
 /// <summary>
-/// Strongly-typed payload for join room.
+/// Payload for join channel (wire: join_room/join_channel).
 /// </summary>
 public sealed class JoinRoomPayload
 {
@@ -73,7 +73,7 @@ public sealed class JoinRoomPayload
 }
 
 /// <summary>
-/// Room info in room list (legacy).
+/// Channel summary in list response (wire: "rooms" array).
 /// </summary>
 public sealed class RoomInfo
 {
@@ -145,7 +145,7 @@ public sealed class MemberInfo
 }
 
 /// <summary>
-/// Strongly-typed payload for room joined.
+/// Payload for channel joined (wire: room_joined).
 /// </summary>
 public sealed class RoomJoinedPayload
 {
@@ -166,21 +166,75 @@ public sealed class RoomJoinedPayload
 }
 
 /// <summary>
-/// Strongly-typed payload for key exchange.
-/// </summary>
-public sealed class KeyExchangePayload
-{
-    [JsonPropertyName("keyMaterial")]
-    public required byte[] KeyMaterial { get; init; }
-}
-
-/// <summary>
 /// Strongly-typed payload for register UDP.
 /// </summary>
 public sealed class RegisterUdpPayload
 {
     [JsonPropertyName("clientId")]
     public required uint ClientId { get; init; }
+}
+
+/// <summary>
+/// Payload for sending a chat message.
+/// </summary>
+public sealed class SendMessagePayload
+{
+    [JsonPropertyName("channelId")]
+    public Guid ChannelId { get; init; }
+
+    [JsonPropertyName("content")]
+    public required string Content { get; init; }
+}
+
+/// <summary>
+/// Payload for requesting message history.
+/// </summary>
+public sealed class GetMessageHistoryPayload
+{
+    [JsonPropertyName("channelId")]
+    public Guid ChannelId { get; init; }
+
+    [JsonPropertyName("since")]
+    public DateTimeOffset? Since { get; init; }
+
+    [JsonPropertyName("limit")]
+    public int Limit { get; init; } = 100;
+}
+
+/// <summary>
+/// A chat message (sent to client or in history).
+/// </summary>
+public sealed class ChatMessagePayload
+{
+    [JsonPropertyName("id")]
+    public Guid Id { get; init; }
+
+    [JsonPropertyName("channelId")]
+    public Guid ChannelId { get; init; }
+
+    [JsonPropertyName("senderId")]
+    public Guid SenderId { get; init; }
+
+    [JsonPropertyName("senderUsername")]
+    public string SenderUsername { get; init; } = string.Empty;
+
+    [JsonPropertyName("content")]
+    public required string Content { get; init; }
+
+    [JsonPropertyName("createdAt")]
+    public DateTimeOffset CreatedAt { get; init; }
+}
+
+/// <summary>
+/// Payload for message history response.
+/// </summary>
+public sealed class MessageHistoryPayload
+{
+    [JsonPropertyName("channelId")]
+    public Guid ChannelId { get; init; }
+
+    [JsonPropertyName("messages")]
+    public required IReadOnlyList<ChatMessagePayload> Messages { get; init; }
 }
 
 /// <summary>

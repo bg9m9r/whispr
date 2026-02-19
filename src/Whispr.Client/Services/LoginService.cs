@@ -37,7 +37,7 @@ public sealed class LoginService : ILoginService
                 return new ConnectFailed("Failed to join default channel");
             }
 
-            return new ConnectSuccess(connection, auth, serverState.Value.RoomJoined, serverState.Value.ServerState);
+            return new ConnectSuccess(connection, auth, serverState.Value.ChannelJoined, serverState.Value.ServerState);
         }
         catch (Exception ex)
         {

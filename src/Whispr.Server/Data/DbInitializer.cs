@@ -22,10 +22,33 @@ public static class DbInitializer
 
         using var ctx = new WhisprDbContext(options);
         ctx.Database.EnsureCreated();
+        EnsureMessagesTable(ctx);
         SeedPermissionsAndRoles(ctx);
         SeedDefaultChannel(ctx);
         MigrateFromJsonIfNeeded(ctx, path);
         SeedAdminUserRoles(ctx);
+    }
+
+    private static void EnsureMessagesTable(WhisprDbContext ctx)
+    {
+        try
+        {
+            ctx.Database.ExecuteSqlRaw("""
+                CREATE TABLE IF NOT EXISTS Messages (
+                    Id TEXT NOT NULL PRIMARY KEY,
+                    ChannelId TEXT NOT NULL,
+                    SenderId TEXT NOT NULL,
+                    Content TEXT NOT NULL,
+                    CreatedAt TEXT NOT NULL
+                )
+                """);
+            ctx.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_Messages_ChannelId ON Messages(ChannelId)");
+            ctx.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_Messages_CreatedAt ON Messages(CreatedAt)");
+        }
+        catch
+        {
+            // Table/indexes may already exist from EnsureCreated
+        }
     }
 
     private static void MigrateFromJsonIfNeeded(WhisprDbContext ctx, string dbPath)

@@ -1,7 +1,7 @@
 namespace Whispr.Core.Models;
 
 /// <summary>
-/// Control message type identifiers for the control channel protocol.
+/// Control message type identifiers. "Room" is legacy terminology for channel.
 /// </summary>
 public static class MessageTypes
 {
@@ -24,6 +24,8 @@ public static class MessageTypes
     public const string GetChannelPermissions = "get_channel_permissions";
     public const string SetChannelRolePermission = "set_channel_role_permission";
     public const string SetChannelUserPermission = "set_channel_user_permission";
+    public const string SendMessage = "send_message";
+    public const string GetMessageHistory = "get_message_history";
 
     // Server → Client
     public const string LoginResponse = "login_response";
@@ -31,7 +33,6 @@ public static class MessageTypes
     public const string ServerState = "server_state";
     public const string RoomJoined = "room_joined";
     public const string RoomLeft = "room_left";
-    public const string KeyExchange = "key_exchange";
     public const string MemberJoined = "member_joined";
     public const string MemberLeft = "member_left";
     public const string MemberUdpRegistered = "member_udp_registered";
@@ -41,4 +42,6 @@ public static class MessageTypes
     public const string RolesList = "roles_list";
     public const string UserPermissions = "user_permissions";
     public const string ChannelPermissions = "channel_permissions";
+    public const string MessageReceived = "message_received";
+    public const string MessageHistory = "message_history";
 }

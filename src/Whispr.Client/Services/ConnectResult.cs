@@ -13,7 +13,7 @@ public abstract record ConnectOutcome;
 public sealed record ConnectSuccess(
     ConnectionService Connection,
     AuthService Auth,
-    RoomJoinedResult RoomJoined,
+    ChannelJoinedResult ChannelJoined,
     ServerStatePayload ServerState) : ConnectOutcome;
 
 /// <summary>

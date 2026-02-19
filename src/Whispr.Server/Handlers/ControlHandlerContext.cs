@@ -13,6 +13,7 @@ public sealed class ControlHandlerContext
     public SessionState State { get; init; } = null!;
     public CancellationToken CancellationToken { get; init; }
     public required Func<Guid, byte[], CancellationToken, Task> SendToUserAsync { get; init; }
+    public required Func<Guid, byte[], Guid?, CancellationToken, Task> SendToChannelAsync { get; init; }
     public required Action<Guid, Stream, SessionState> RegisterControlStream { get; init; }
 
     public async Task SendErrorAsync(string code, string message)

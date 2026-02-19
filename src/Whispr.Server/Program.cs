@@ -40,6 +40,7 @@ if (string.IsNullOrWhiteSpace(options.DatabasePath))
     services.AddSingleton<IUserRepository, InMemoryUserRepository>();
     services.AddSingleton<IPermissionRepository, InMemoryPermissionRepository>();
     services.AddSingleton<IChannelRepository, InMemoryChannelRepository>();
+    services.AddSingleton<IMessageRepository, InMemoryMessageRepository>();
 }
 else
 {
@@ -51,11 +52,13 @@ else
     services.AddSingleton<IUserRepository, EfUserStore>();
     services.AddSingleton<IPermissionRepository>(sp => (IPermissionRepository)sp.GetRequiredService<IUserRepository>());
     services.AddSingleton<IChannelRepository, EfChannelRepository>();
+    services.AddSingleton<IMessageRepository, EfMessageRepository>();
 }
 
 // Services
 services.AddSingleton<IAuthService, AuthService>();
 services.AddSingleton<IChannelService, ChannelManager>();
+services.AddSingleton<IMessageService, MessageService>();
 services.AddSingleton<UdpEndpointRegistry>();
 services.AddSingleton<ControlMessageRouter>();
 services.AddSingleton<ControlServer>();

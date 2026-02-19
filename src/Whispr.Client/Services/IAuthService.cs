@@ -14,7 +14,7 @@ public interface IAuthService
     bool IsAdmin { get; }
 
     Task<LoginResult> LoginAsync(string username, string password, CancellationToken ct = default);
-    Task<(RoomJoinedResult RoomJoined, ServerStatePayload ServerState)?> ReadInitialServerStateAsync(CancellationToken ct = default);
+    Task<(ChannelJoinedResult ChannelJoined, ServerStatePayload ServerState)?> ReadInitialServerStateAsync(CancellationToken ct = default);
     Task SendLeaveRoomAsync(CancellationToken ct = default);
     Task RegisterUdpAsync(uint clientId, CancellationToken ct = default);
 }

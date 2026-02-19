@@ -23,7 +23,7 @@ public sealed class FakeLoginViewHost : ILoginViewHost
     /// <summary>When true, ShowUnverifiedCertRetryDialogAsync returns true (user retries).</summary>
     public bool CertRetryReturnsTrue { get; set; }
 
-    public void ShowChannelView(ConnectionService connection, AuthService auth, RoomJoinedResult roomJoined, ServerStatePayload serverState, string host)
+    public void ShowChannelView(ConnectionService connection, AuthService auth, ChannelJoinedResult channelJoined, ServerStatePayload serverState, string host)
     {
         ShowChannelViewCallCount++;
         connection.Dispose();

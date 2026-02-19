@@ -28,12 +28,12 @@ public sealed class FakeLoginService : ILoginService
     /// <summary>
     /// Configure to return success with disposable connection and auth.
     /// </summary>
-    public void SetSuccess(RoomJoinedResult roomJoined, ServerStatePayload serverState)
+    public void SetSuccess(ChannelJoinedResult channelJoined, ServerStatePayload serverState)
     {
         _outcomes.Clear();
         var connection = new ConnectionService();
         var auth = new AuthService(connection);
-        _outcomes.Enqueue(new ConnectSuccess(connection, auth, roomJoined, serverState));
+        _outcomes.Enqueue(new ConnectSuccess(connection, auth, channelJoined, serverState));
     }
 
     /// <summary>

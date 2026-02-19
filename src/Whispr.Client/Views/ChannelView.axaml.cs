@@ -18,13 +18,13 @@ public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
     private readonly ChannelViewModel _viewModel;
 
     public ChannelView(MainWindow window, ConnectionService connection, AuthService auth,
-        RoomJoinedResult roomResult, ServerStatePayload serverState, string serverHost)
+        ChannelJoinedResult channelResult, ServerStatePayload serverState, string serverHost)
     {
         _window = window;
         var myUserId = auth.User?.Id ?? Guid.Empty;
         _channelService = new ChannelService(connection, auth, myUserId, a => Avalonia.Threading.Dispatcher.UIThread.Post(a));
-        _channelService.Start(roomResult, serverState);
-        _viewModel = new ChannelViewModel(_channelService, auth, this, roomResult, serverState, serverHost);
+        _channelService.Start(channelResult, serverState);
+        _viewModel = new ChannelViewModel(_channelService, auth, this, channelResult, serverState, serverHost);
         _viewModel.TreeRefreshed += ExpandAllNodesWhenReady;
         DataContext = _viewModel;
         InitializeComponent();

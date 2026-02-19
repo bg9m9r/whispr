@@ -23,9 +23,9 @@ public partial class LoginView : UserControl, ILoginViewHost
         AddHandler(KeyDownEvent, OnKeyDown, handledEventsToo: true);
     }
 
-    void ILoginViewHost.ShowChannelView(ConnectionService connection, AuthService auth, RoomJoinedResult roomJoined, ServerStatePayload serverState, string host)
+    void ILoginViewHost.ShowChannelView(ConnectionService connection, AuthService auth, ChannelJoinedResult channelJoined, ServerStatePayload serverState, string host)
     {
-        _window.ShowChannelView(connection, auth, roomJoined, serverState, host);
+        _window.ShowChannelView(connection, auth, channelJoined, serverState, host);
     }
 
     void ILoginViewHost.Close() => _window.Close();

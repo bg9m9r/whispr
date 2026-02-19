@@ -5,9 +5,13 @@ using Whispr.Server.Services;
 
 namespace Whispr.Server.Handlers;
 
-internal sealed class LoginHandler(IAuthService auth, IChannelService channels, UdpEndpointRegistry udpRegistry)
+internal sealed class LoginHandler(IAuthService auth, IChannelService channels, UdpEndpointRegistry udpRegistry) : IControlMessageHandler
 {
-    public async Task HandleLoginAsync(ControlMessage message, ControlHandlerContext ctx)
+    public IReadOnlyList<string> HandledMessageTypes { get; } = [MessageTypes.LoginRequest];
+
+    public Task HandleAsync(ControlMessage message, ControlHandlerContext ctx) => HandleLoginAsync(message, ctx);
+
+    private async Task HandleLoginAsync(ControlMessage message, ControlHandlerContext ctx)
     {
         var payload = ControlProtocol.DeserializePayload<LoginRequestPayload>(message);
         if (payload is null)
@@ -94,17 +98,7 @@ internal sealed class LoginHandler(IAuthService auth, IChannelService channels, 
                 Username = user.Username,
                 ClientId = 0
             });
-            foreach (var memberId in channel.MemberIds)
-            {
-                if (memberId == user.Id) continue;
-                await ctx.SendToUserAsync(memberId, memberJoined, ctx.CancellationToken);
-            }
+            await ctx.SendToChannelAsync(channel.Id, memberJoined, user.Id, ctx.CancellationToken);
         }
-    }
-
-    public static async Task HandlePingAsync(Stream stream, CancellationToken ct)
-    {
-        var pong = ControlProtocol.Serialize(MessageTypes.Pong, new { });
-        await stream.WriteAsync(pong, ct);
     }
 }

@@ -13,13 +13,29 @@ namespace Whispr.Server.Handlers;
 public sealed class ControlMessageRouter(
     IAuthService auth,
     IChannelService channels,
+    IMessageService messages,
     UdpEndpointRegistry udpRegistry)
 {
-    private readonly LoginHandler _loginHandler = new(auth, channels, udpRegistry);
-    private readonly ChannelHandler _channelHandler = new(auth, channels, udpRegistry);
-    private readonly PermissionHandler _permissionHandler = new(auth);
-    private readonly UdpRegistrationHandler _udpHandler = new(channels, udpRegistry);
+    private readonly IReadOnlyDictionary<string, IControlMessageHandler> _handlers = BuildHandlerMap(
+        new LoginHandler(auth, channels, udpRegistry),
+        new ChannelHandler(auth, channels, udpRegistry),
+        new UdpRegistrationHandler(auth, udpRegistry),
+        new PermissionHandler(auth),
+        new PingHandler(),
+        new MessageHandler(auth, messages)
+    );
     private readonly ConcurrentDictionary<Guid, (Stream Stream, SessionState State)> _userControlStreams = new();
+
+    private static IReadOnlyDictionary<string, IControlMessageHandler> BuildHandlerMap(params IControlMessageHandler[] handlers)
+    {
+        var map = new Dictionary<string, IControlMessageHandler>();
+        foreach (var h in handlers)
+        {
+            foreach (var t in h.HandledMessageTypes)
+                map[t] = h;
+        }
+        return map;
+    }
 
     public void RegisterControlStream(Guid userId, Stream stream, SessionState state)
     {
@@ -38,7 +54,7 @@ public sealed class ControlMessageRouter(
         var result = channels.LeaveChannel(state.User.Id);
         if (result is not null)
         {
-            var (_, remainingMembers) = result.Value;
+            var (channelId, _) = result.Value;
             var clientId = state.ClientId ?? 0;
             if (state.ClientId.HasValue)
                 udpRegistry.UnregisterByClientId(state.ClientId.Value);
@@ -49,8 +65,7 @@ public sealed class ControlMessageRouter(
                 Username = state.User.Username,
                 ClientId = clientId
             });
-            foreach (var memberId in remainingMembers)
-                _ = SendToUserAsync(memberId, memberLeft);
+            _ = SendToChannelAsync(channelId, memberLeft);
             ServerLog.Info($"Client disconnected, removed from room: {state.User.Username}");
         }
 
@@ -72,6 +87,18 @@ public sealed class ControlMessageRouter(
         }
     }
 
+    /// <summary>
+    /// Sends a message to all members of a channel, optionally excluding one user.
+    /// </summary>
+    public async Task SendToChannelAsync(Guid channelId, byte[] message, Guid? excludeUserId = null, CancellationToken ct = default)
+    {
+        var members = channels.GetOtherMembers(channelId, excludeUserId ?? Guid.Empty);
+        if (members is null) return;
+
+        foreach (var memberId in members)
+            await SendToUserAsync(memberId, message, ct);
+    }
+
     public async Task HandleAsync(ControlMessage message, Stream stream, SessionState state, CancellationToken ct = default)
     {
         var ctx = new ControlHandlerContext
@@ -80,64 +107,19 @@ public sealed class ControlMessageRouter(
             State = state,
             CancellationToken = ct,
             SendToUserAsync = (userId, msg, c) => SendToUserAsync(userId, msg, c),
+            SendToChannelAsync = (chId, msg, excl, c) => SendToChannelAsync(chId, msg, excl, c),
             RegisterControlStream = (userId, s, st) => RegisterControlStream(userId, s, st)
         };
 
-        switch (message.Type)
+        if (!state.TryConsumeRateLimit())
         {
-            case MessageTypes.LoginRequest:
-                await _loginHandler.HandleLoginAsync(message, ctx);
-                break;
-            case MessageTypes.CreateRoom:
-            case MessageTypes.CreateChannel:
-                await _channelHandler.HandleCreateChannelAsync(message, ctx);
-                break;
-            case MessageTypes.JoinRoom:
-            case MessageTypes.JoinChannel:
-                await _channelHandler.HandleJoinChannelAsync(message, ctx);
-                break;
-            case MessageTypes.LeaveRoom:
-                await _channelHandler.HandleLeaveChannelAsync(ctx);
-                break;
-            case MessageTypes.RegisterUdp:
-                await _udpHandler.HandleRegisterUdpAsync(message, ctx);
-                break;
-            case MessageTypes.RequestRoomList:
-                await _channelHandler.HandleRequestRoomListAsync(ctx);
-                break;
-            case MessageTypes.RequestServerState:
-                await _channelHandler.HandleRequestServerStateAsync(ctx);
-                break;
-            case MessageTypes.Ping:
-                await LoginHandler.HandlePingAsync(stream, ct);
-                break;
-            case MessageTypes.ListPermissions:
-                await _permissionHandler.HandleListPermissionsAsync(ctx);
-                break;
-            case MessageTypes.ListRoles:
-                await _permissionHandler.HandleListRolesAsync(ctx);
-                break;
-            case MessageTypes.GetUserPermissions:
-                await _permissionHandler.HandleGetUserPermissionsAsync(message, ctx);
-                break;
-            case MessageTypes.SetUserPermission:
-                await _permissionHandler.HandleSetUserPermissionAsync(message, ctx);
-                break;
-            case MessageTypes.SetUserRole:
-                await _permissionHandler.HandleSetUserRoleAsync(message, ctx);
-                break;
-            case MessageTypes.GetChannelPermissions:
-                await _permissionHandler.HandleGetChannelPermissionsAsync(message, ctx);
-                break;
-            case MessageTypes.SetChannelRolePermission:
-                await _permissionHandler.HandleSetChannelRolePermissionAsync(message, ctx);
-                break;
-            case MessageTypes.SetChannelUserPermission:
-                await _permissionHandler.HandleSetChannelUserPermissionAsync(message, ctx);
-                break;
-            default:
-                await ctx.SendErrorAsync("invalid_message", $"Unknown message type: {message.Type}");
-                break;
+            await ctx.SendErrorAsync("rate_limited", "Too many requests. Please slow down.");
+            return;
         }
+
+        if (_handlers.TryGetValue(message.Type, out var handler))
+            await handler.HandleAsync(message, ctx);
+        else
+            await ctx.SendErrorAsync("invalid_message", $"Unknown message type: {message.Type}");
     }
 }

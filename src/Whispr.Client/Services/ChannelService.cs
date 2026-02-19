@@ -20,7 +20,7 @@ public sealed class ChannelService : IChannelService
     private CancellationTokenSource? _readerCts;
     private CancellationTokenSource? _pingCts;
     private TaskCompletionSource<bool>? _pendingRoomLeftTcs;
-    private TaskCompletionSource<RoomJoinedResult?>? _pendingRoomJoinedTcs;
+    private TaskCompletionSource<ChannelJoinedResult?>? _pendingRoomJoinedTcs;
     private TaskCompletionSource<object?>? _pendingPermissionResponseTcs;
     private bool _disposed;
     private int? _pingLatencyMs;
@@ -48,7 +48,7 @@ public sealed class ChannelService : IChannelService
     /// <summary>
     /// Current room (id, name, key, members). Updated when RoomJoined received.
     /// </summary>
-    public RoomJoinedResult RoomResult { get; private set; } = null!;
+    public ChannelJoinedResult ChannelResult { get; private set; } = null!;
 
     /// <summary>
     /// UserId -> ClientId for UDP. Updated from MemberJoined, MemberUdpRegistered, MemberLeft.
@@ -68,7 +68,7 @@ public sealed class ChannelService : IChannelService
     /// <summary>
     /// Raised when RoomJoined is received (join or switch). Subscribe on UI thread.
     /// </summary>
-    public event Action<RoomJoinedResult>? RoomJoinedReceived;
+    public event Action<ChannelJoinedResult>? RoomJoinedReceived;
 
     /// <summary>
     /// Raised when RoomLeft is received and we're not switching. Subscribe on UI thread.
@@ -88,9 +88,9 @@ public sealed class ChannelService : IChannelService
     /// <summary>
     /// Initializes with initial room and state, then starts the control reader.
     /// </summary>
-    public void Start(RoomJoinedResult roomResult, ServerStatePayload serverState)
+    public void Start(ChannelJoinedResult roomResult, ServerStatePayload serverState)
     {
-        RoomResult = roomResult;
+        ChannelResult = roomResult;
         ServerState = serverState;
         _members.Clear();
         _userIdToClientId.Clear();
@@ -181,14 +181,14 @@ public sealed class ChannelService : IChannelService
     /// <summary>
     /// Leaves current room and joins the specified channel.
     /// </summary>
-    public async Task<RoomJoinedResult?> SwitchToChannelAsync(Guid channelId)
+    public async Task<ChannelJoinedResult?> SwitchToChannelAsync(Guid channelId)
     {
         _pendingRoomLeftTcs = new TaskCompletionSource<bool>();
         await _auth.SendLeaveRoomAsync();
         await _pendingRoomLeftTcs.Task;
         _pendingRoomLeftTcs = null;
 
-        _pendingRoomJoinedTcs = new TaskCompletionSource<RoomJoinedResult?>();
+        _pendingRoomJoinedTcs = new TaskCompletionSource<ChannelJoinedResult?>();
         await _connection.SendAsync(MessageTypes.JoinRoom, new JoinRoomPayload { RoomId = channelId });
         var result = await _pendingRoomJoinedTcs.Task;
         _pendingRoomJoinedTcs = null;
@@ -198,9 +198,9 @@ public sealed class ChannelService : IChannelService
     /// <summary>
     /// Creates a new channel and joins it.
     /// </summary>
-    public async Task<RoomJoinedResult?> CreateChannelAsync(string name)
+    public async Task<ChannelJoinedResult?> CreateChannelAsync(string name)
     {
-        _pendingRoomJoinedTcs = new TaskCompletionSource<RoomJoinedResult?>();
+        _pendingRoomJoinedTcs = new TaskCompletionSource<ChannelJoinedResult?>();
         await _connection.SendAsync(MessageTypes.CreateRoom, new CreateRoomPayload { Name = name });
         var result = await _pendingRoomJoinedTcs.Task;
         _pendingRoomJoinedTcs = null;
@@ -373,10 +373,10 @@ public sealed class ChannelService : IChannelService
                         {
                             var key = KeyDerivation.DeriveAudioKey(roomJoined.KeyMaterial);
                             var members = roomJoined.Members ?? roomJoined.MemberIds.Select(id => new MemberInfo { UserId = id, Username = id.ToString(), ClientId = 0 }).ToList();
-                            var result = new RoomJoinedResult(roomJoined.RoomId, roomJoined.RoomName, roomJoined.MemberIds, members, key);
+                            var result = new ChannelJoinedResult(roomJoined.RoomId, roomJoined.RoomName, roomJoined.MemberIds, members, key);
 
                             _pendingRoomJoinedTcs?.TrySetResult(result);
-                            RoomResult = result;
+                            ChannelResult = result;
                             _members.Clear();
                             _userIdToClientId.Clear();
                             foreach (var m in result.Members)

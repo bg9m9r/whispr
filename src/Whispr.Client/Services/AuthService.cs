@@ -68,7 +68,7 @@ public sealed class AuthService : IAuthService
     /// <summary>
     /// After login, reads RoomJoined and ServerState (server auto-joins to default channel).
     /// </summary>
-    public async Task<(RoomJoinedResult RoomJoined, ServerStatePayload ServerState)?> ReadInitialServerStateAsync(CancellationToken ct = default)
+    public async Task<(ChannelJoinedResult ChannelJoined, ServerStatePayload ServerState)?> ReadInitialServerStateAsync(CancellationToken ct = default)
     {
         var roomJoined = await ReadNextAsync(ct);
         if (roomJoined?.Type != MessageTypes.RoomJoined)
@@ -88,14 +88,14 @@ public sealed class AuthService : IAuthService
 
         var key = KeyDerivation.DeriveAudioKey(joinedPayload.KeyMaterial);
         var members = joinedPayload.Members ?? joinedPayload.MemberIds.Select(id => new MemberInfo { UserId = id, Username = id.ToString(), ClientId = 0 }).ToList();
-        var roomResult = new RoomJoinedResult(joinedPayload.RoomId, joinedPayload.RoomName, joinedPayload.MemberIds, members, key);
+        var roomResult = new ChannelJoinedResult(joinedPayload.RoomId, joinedPayload.RoomName, joinedPayload.MemberIds, members, key);
         return (roomResult, statePayload);
     }
 
     /// <summary>
     /// Creates a room and joins it.
     /// </summary>
-    public async Task<RoomJoinedResult?> CreateRoomAsync(string name, CancellationToken ct = default)
+    public async Task<ChannelJoinedResult?> CreateRoomAsync(string name, CancellationToken ct = default)
     {
         RequireAuth();
         await _connection.SendAsync(MessageTypes.CreateRoom, new CreateRoomPayload { Name = name }, ct);
@@ -105,10 +105,10 @@ public sealed class AuthService : IAuthService
     /// <summary>
     /// Joins an existing room.
     /// </summary>
-    public async Task<RoomJoinedResult?> JoinRoomAsync(Guid roomId, CancellationToken ct = default)
+    public async Task<ChannelJoinedResult?> JoinRoomAsync(Guid channelId, CancellationToken ct = default)
     {
         RequireAuth();
-        await _connection.SendAsync(MessageTypes.JoinRoom, new JoinRoomPayload { RoomId = roomId }, ct);
+        await _connection.SendAsync(MessageTypes.JoinRoom, new JoinRoomPayload { RoomId = channelId }, ct);
         return await WaitForRoomJoinedAsync(ct);
     }
 
@@ -176,7 +176,7 @@ public sealed class AuthService : IAuthService
         }
     }
 
-    private async Task<RoomJoinedResult?> WaitForRoomJoinedAsync(CancellationToken ct)
+    private async Task<ChannelJoinedResult?> WaitForRoomJoinedAsync(CancellationToken ct)
     {
         var response = await ReadNextAsync(ct);
         if (response?.Type == MessageTypes.Error)
@@ -193,7 +193,7 @@ public sealed class AuthService : IAuthService
 
         var key = KeyDerivation.DeriveAudioKey(payload.KeyMaterial);
         var members = payload.Members ?? payload.MemberIds.Select(id => new MemberInfo { UserId = id, Username = id.ToString(), ClientId = 0 }).ToList();
-        return new RoomJoinedResult(payload.RoomId, payload.RoomName, payload.MemberIds, members, key);
+        return new ChannelJoinedResult(payload.RoomId, payload.RoomName, payload.MemberIds, members, key);
     }
 }
 
@@ -203,6 +203,6 @@ public sealed class AuthService : IAuthService
 public sealed record LoginResult(bool Success, string? Error = null);
 
 /// <summary>
-/// Result of joining or creating a room.
+/// Result of joining or creating a channel (wire: room_joined).
 /// </summary>
-public sealed record RoomJoinedResult(Guid RoomId, string RoomName, IReadOnlyList<Guid> MemberIds, IReadOnlyList<MemberInfo> Members, byte[] AudioKey);
+public sealed record ChannelJoinedResult(Guid ChannelId, string ChannelName, IReadOnlyList<Guid> MemberIds, IReadOnlyList<MemberInfo> Members, byte[] AudioKey);

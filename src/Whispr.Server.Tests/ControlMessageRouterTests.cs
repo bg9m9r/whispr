@@ -15,8 +15,9 @@ public sealed class ControlMessageRouterTests
     {
         var auth = new AuthService(new InMemoryUserRepository(), new InMemoryPermissionRepository());
         var channels = new ChannelManager(new InMemoryChannelRepository());
+        var messages = new MessageService(new InMemoryMessageRepository(), auth);
         var udpRegistry = new UdpEndpointRegistry();
-        return new ControlMessageRouter(auth, channels, udpRegistry);
+        return new ControlMessageRouter(auth, channels, messages, udpRegistry);
     }
 
     private static ControlMessage CreateMessage(string type, object? payload = null)
@@ -149,8 +150,9 @@ public sealed class ControlMessageRouterTests
     {
         var auth = new AuthService(new InMemoryUserRepository(), new InMemoryPermissionRepository());
         var channels = new ChannelManager(new InMemoryChannelRepository());
+        var messages = new MessageService(new InMemoryMessageRepository(), auth);
         var udpRegistry = new UdpEndpointRegistry();
-        var router = new ControlMessageRouter(auth, channels, udpRegistry);
+        var router = new ControlMessageRouter(auth, channels, messages, udpRegistry);
 
         var user = auth.ValidateCredentials("admin", "admin")!;
         var joinResult = channels.JoinDefaultChannel(user.Id);
