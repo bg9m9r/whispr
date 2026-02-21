@@ -83,12 +83,21 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string _messageInputText = "";
 
+    /// <summary>Emoji shown in the picker for insertion into the message input.</summary>
+    public static IReadOnlyList<string> EmojiPickerList { get; } =
+    [
+        "😀", "😊", "🙂", "😉", "😎", "🥳", "🎉", "👍", "👋", "❤️", "✅", "❌", "🔥", "⭐", "😂", "🤔", "👏", "🙏", "💯", "✨"
+    ];
+
     /// <summary>True when a request for older messages is in flight (scroll-up paging).</summary>
     [ObservableProperty]
     private bool _isLoadingOlderMessages;
 
     /// <summary>True when the next MessageHistoryReceived should prepend (older messages) instead of replace.</summary>
     private bool _pendingHistoryIsOlder;
+
+    /// <summary>Set by ViewModel when the view should scroll the message list to bottom (new message or initial load). View clears after scrolling.</summary>
+    public bool RequestScrollToBottom { get; set; }
 
     /// <summary>Selected channel for the main panel (voice or text).</summary>
     public Guid? SelectedChannelId { get => _selectedChannelId; private set => SetProperty(ref _selectedChannelId, value); }
@@ -129,6 +138,34 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
     /// <summary>Visible when right-clicking on a user (edit that user's permissions) or a channel (edit channel permissions).</summary>
     public bool IsEditPermissionsVisible => _contextMenuTargetNode is { Kind: NodeKind.User } || _contextMenuTargetNode is { Kind: NodeKind.Channel };
 
+    /// <summary>Message under the context menu (set by view on right-click).</summary>
+    private MessageDisplayItem? _contextMessageItem;
+
+    public MessageDisplayItem? ContextMessageItem
+    {
+        get => _contextMessageItem;
+        set
+        {
+            if (_contextMessageItem == value) return;
+            _contextMessageItem = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CanEditMessage));
+            OnPropertyChanged(nameof(CanDeleteMessage));
+            ((IRelayCommand)EditMessageCommand).NotifyCanExecuteChanged();
+            ((IRelayCommand)DeleteMessageCommand).NotifyCanExecuteChanged();
+        }
+    }
+
+    public bool CanEditMessage => _contextMessageItem != null && _contextMessageItem.Message.SenderId == _myUserId;
+    public bool CanDeleteMessage => _contextMessageItem != null && (_contextMessageItem.Message.SenderId == _myUserId || _auth.IsAdmin);
+
+    /// <summary>When set, this message row is in edit mode; content is in EditingMessageContent.</summary>
+    [ObservableProperty]
+    private Guid? _editingMessageId;
+
+    [ObservableProperty]
+    private string _editingMessageContent = "";
+
     public ObservableCollection<ServerTreeNode> ServerTreeRootItems { get; } = new();
     public ObservableCollection<PermissionTargetItem> PermissionTargetItems { get; } = new();
 
@@ -148,6 +185,8 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
         _channelService.PingLatencyUpdated += OnPingLatencyUpdated;
         _channelService.MessageReceived += OnMessageReceived;
         _channelService.MessageHistoryReceived += OnMessageHistoryReceived;
+        _channelService.MessageUpdated += OnMessageUpdated;
+        _channelService.MessageDeleted += OnMessageDeleted;
 
         BuildTree();
         CanCreateChannel = serverState.CanCreateChannel;
@@ -245,6 +284,7 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
     {
         if (!_selectedChannelId.HasValue || payload.ChannelId != _selectedChannelId.Value) return;
         Messages.Add(payload);
+        RequestScrollToBottom = true;
         RefreshMessageDisplayItems();
     }
 
@@ -263,8 +303,48 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
             Messages.Clear();
             foreach (var m in payload.Messages)
                 Messages.Add(m);
+            RequestScrollToBottom = true; // initial load: scroll to bottom
         }
         RefreshMessageDisplayItems();
+    }
+
+    private void OnMessageUpdated(ChatMessagePayload payload)
+    {
+        if (!_selectedChannelId.HasValue || payload.ChannelId != _selectedChannelId.Value) return;
+        var idx = Messages.Select((m, i) => (m, i)).FirstOrDefault(x => x.m.Id == payload.Id).i;
+        if (idx < Messages.Count)
+        {
+            Messages.RemoveAt(idx);
+            Messages.Insert(idx, payload);
+            RefreshMessageDisplayItems();
+        }
+        if (EditingMessageId == payload.Id)
+        {
+            EditingMessageId = null;
+            EditingMessageContent = "";
+        }
+    }
+
+    private void OnMessageDeleted(MessageDeletedPayload payload)
+    {
+        if (!_selectedChannelId.HasValue || payload.ChannelId != _selectedChannelId.Value) return;
+        int idx = -1;
+        for (int i = 0; i < Messages.Count; i++)
+        {
+            if (Messages[i].Id == payload.MessageId) { idx = i; break; }
+        }
+        if (idx >= 0)
+        {
+            Messages.RemoveAt(idx);
+            RefreshMessageDisplayItems();
+        }
+        if (ContextMessageItem?.Message.Id == payload.MessageId)
+            ContextMessageItem = null;
+        if (EditingMessageId == payload.MessageId)
+        {
+            EditingMessageId = null;
+            EditingMessageContent = "";
+        }
     }
 
     private void RefreshMessageDisplayItems()
@@ -274,7 +354,8 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
         foreach (var m in Messages)
         {
             var showHeader = prevSenderId is null || prevSenderId.Value != m.SenderId;
-            MessageDisplayItems.Add(new MessageDisplayItem(m, showHeader));
+            var isEditing = m.Id == EditingMessageId;
+            MessageDisplayItems.Add(new MessageDisplayItem(m, showHeader, isEditing));
             prevSenderId = m.SenderId;
         }
     }
@@ -657,7 +738,8 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanSendMessage))]
     private async Task SendMessage()
     {
-        var content = MessageInputText.Trim();
+        // Strip zero-width spaces we insert after emoji so the space renders with the primary font in the input.
+        var content = MessageInputText.Replace("\u200B", "").Trim();
         if (string.IsNullOrEmpty(content) || !IsTextChannel || !_selectedChannelId.HasValue) return;
 
         var channelId = _selectedChannelId.Value;
@@ -673,6 +755,59 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
     }
 
     private bool CanSendMessage() => HasTextChannelSelected;
+
+    [RelayCommand(CanExecute = nameof(CanEditMessage))]
+    private void EditMessage()
+    {
+        if (_contextMessageItem is null) return;
+        EditingMessageId = _contextMessageItem.Message.Id;
+        EditingMessageContent = _contextMessageItem.Message.Content ?? "";
+        ContextMessageItem = null;
+        RefreshMessageDisplayItems();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanDeleteMessage))]
+    private async Task DeleteMessage()
+    {
+        if (_contextMessageItem is null || !_selectedChannelId.HasValue) return;
+        var msg = _contextMessageItem.Message;
+        ContextMessageItem = null;
+        try
+        {
+            await _channelService.DeleteMessageAsync(_selectedChannelId.Value, msg.Id);
+        }
+        catch (Exception ex)
+        {
+            ClientLog.Info($"Delete message failed: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private async Task CommitEditMessage()
+    {
+        if (!EditingMessageId.HasValue || !_selectedChannelId.HasValue) return;
+        var messageId = EditingMessageId.Value;
+        var content = (EditingMessageContent ?? "").Trim();
+        EditingMessageId = null;
+        EditingMessageContent = "";
+        RefreshMessageDisplayItems();
+        try
+        {
+            await _channelService.EditMessageAsync(_selectedChannelId.Value, messageId, content);
+        }
+        catch (Exception ex)
+        {
+            ClientLog.Info($"Edit message failed: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private void CancelEditMessage()
+    {
+        EditingMessageId = null;
+        EditingMessageContent = "";
+        RefreshMessageDisplayItems();
+    }
 
     public void SetTransmitting(bool transmitting)
     {
@@ -725,6 +860,8 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
         _channelService.PingLatencyUpdated -= OnPingLatencyUpdated;
         _channelService.MessageReceived -= OnMessageReceived;
         _channelService.MessageHistoryReceived -= OnMessageHistoryReceived;
+        _channelService.MessageUpdated -= OnMessageUpdated;
+        _channelService.MessageDeleted -= OnMessageDeleted;
         StopAudio();
         _channelService.Stop();
         _disposed = true;

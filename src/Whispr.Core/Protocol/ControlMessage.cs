@@ -248,6 +248,48 @@ public sealed class ChatMessagePayload
 
     [JsonPropertyName("createdAt")]
     public DateTimeOffset CreatedAt { get; init; }
+
+    [JsonPropertyName("updatedAt")]
+    public DateTimeOffset? UpdatedAt { get; init; }
+}
+
+/// <summary>
+/// Payload for editing a message (client → server).
+/// </summary>
+public sealed class EditMessagePayload
+{
+    [JsonPropertyName("messageId")]
+    public Guid MessageId { get; init; }
+
+    [JsonPropertyName("channelId")]
+    public Guid ChannelId { get; init; }
+
+    [JsonPropertyName("content")]
+    public required string Content { get; init; }
+}
+
+/// <summary>
+/// Payload for deleting a message (client → server).
+/// </summary>
+public sealed class DeleteMessagePayload
+{
+    [JsonPropertyName("messageId")]
+    public Guid MessageId { get; init; }
+
+    [JsonPropertyName("channelId")]
+    public Guid ChannelId { get; init; }
+}
+
+/// <summary>
+/// Payload for message deleted broadcast (server → client).
+/// </summary>
+public sealed class MessageDeletedPayload
+{
+    [JsonPropertyName("messageId")]
+    public Guid MessageId { get; init; }
+
+    [JsonPropertyName("channelId")]
+    public Guid ChannelId { get; init; }
 }
 
 /// <summary>

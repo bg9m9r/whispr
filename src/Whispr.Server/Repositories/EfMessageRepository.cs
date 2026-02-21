@@ -30,7 +30,54 @@ public sealed class EfMessageRepository(IDbContextFactory<WhisprDbContext> facto
         };
         ctx.Messages.Add(entity);
         ctx.SaveChanges();
-        return new MessageRecord(id, channelId, senderId, content, createdAt);
+        return new MessageRecord(id, channelId, senderId, content, createdAt, UpdatedAt: null);
+    }
+
+    public MessageRecord? GetById(Guid messageId)
+    {
+        using var ctx = factory.CreateDbContext();
+        var entity = ctx.Messages.Find(messageId.ToString());
+        if (entity is null) return null;
+        var content = entity.Content.StartsWith(EncryptedPrefix, StringComparison.Ordinal)
+            ? encryption.Decrypt(Convert.FromBase64String(entity.Content.Substring(EncryptedPrefix.Length)))
+            : entity.Content;
+        return new MessageRecord(
+            Guid.Parse(entity.Id),
+            Guid.Parse(entity.ChannelId),
+            Guid.Parse(entity.SenderId),
+            content,
+            entity.CreatedAt,
+            entity.UpdatedAt);
+    }
+
+    public MessageRecord? Update(Guid messageId, string content)
+    {
+        var encrypted = encryption.Encrypt(content);
+        var stored = EncryptedPrefix + Convert.ToBase64String(encrypted);
+        using var ctx = factory.CreateDbContext();
+        var entity = ctx.Messages.Find(messageId.ToString());
+        if (entity is null) return null;
+        entity.Content = stored;
+        entity.UpdatedAt = DateTimeOffset.UtcNow;
+        entity.UpdatedAtTicks = entity.UpdatedAt.Value.UtcTicks;
+        ctx.SaveChanges();
+        return new MessageRecord(
+            Guid.Parse(entity.Id),
+            Guid.Parse(entity.ChannelId),
+            Guid.Parse(entity.SenderId),
+            content,
+            entity.CreatedAt,
+            entity.UpdatedAt);
+    }
+
+    public bool Delete(Guid messageId)
+    {
+        using var ctx = factory.CreateDbContext();
+        var entity = ctx.Messages.Find(messageId.ToString());
+        if (entity is null) return false;
+        ctx.Messages.Remove(entity);
+        ctx.SaveChanges();
+        return true;
     }
 
     public IReadOnlyList<MessageRecord> GetByChannel(Guid channelId, DateTimeOffset? since = null, DateTimeOffset? before = null, int limit = 100)
@@ -78,7 +125,8 @@ public sealed class EfMessageRepository(IDbContextFactory<WhisprDbContext> facto
                 Guid.Parse(m.ChannelId),
                 Guid.Parse(m.SenderId),
                 content,
-                m.CreatedAt);
+                m.CreatedAt,
+                m.UpdatedAt);
         }).ToList();
     }
 }

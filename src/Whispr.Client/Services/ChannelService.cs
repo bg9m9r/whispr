@@ -98,6 +98,16 @@ public sealed class ChannelService : IChannelService
     public event Action<MessageHistoryPayload>? MessageHistoryReceived;
 
     /// <summary>
+    /// Raised when a message was edited. Subscribe on UI thread.
+    /// </summary>
+    public event Action<ChatMessagePayload>? MessageUpdated;
+
+    /// <summary>
+    /// Raised when a message was deleted. Subscribe on UI thread.
+    /// </summary>
+    public event Action<MessageDeletedPayload>? MessageDeleted;
+
+    /// <summary>
     /// Initializes with initial room and state, then starts the control reader.
     /// </summary>
     public void Start(ChannelJoinedResult roomResult, ServerStatePayload serverState)
@@ -332,6 +342,22 @@ public sealed class ChannelService : IChannelService
     }
 
     /// <summary>
+    /// Edits a message. MessageUpdated is raised when the server broadcasts the update.
+    /// </summary>
+    public async Task EditMessageAsync(Guid channelId, Guid messageId, string content, CancellationToken ct = default)
+    {
+        await _connection.SendAsync(MessageTypes.EditMessage, new EditMessagePayload { ChannelId = channelId, MessageId = messageId, Content = content }, ct);
+    }
+
+    /// <summary>
+    /// Deletes a message. MessageDeleted is raised when the server broadcasts the deletion.
+    /// </summary>
+    public async Task DeleteMessageAsync(Guid channelId, Guid messageId, CancellationToken ct = default)
+    {
+        await _connection.SendAsync(MessageTypes.DeleteMessage, new DeleteMessagePayload { ChannelId = channelId, MessageId = messageId }, ct);
+    }
+
+    /// <summary>
     /// Gets username for a user ID from members or server state.
     /// </summary>
     public string? GetUsernameForUserId(Guid userId)
@@ -506,6 +532,22 @@ public sealed class ChannelService : IChannelService
                             _pendingMessageHistoryTcs = null;
                             var hp = historyPayload;
                             _postToUi(() => MessageHistoryReceived?.Invoke(hp));
+                        }
+                        break;
+                    case MessageTypes.MessageUpdated:
+                        var updatedMsg = ControlProtocol.DeserializePayload<ChatMessagePayload>(msg);
+                        if (updatedMsg is not null)
+                        {
+                            var um = updatedMsg;
+                            _postToUi(() => MessageUpdated?.Invoke(um));
+                        }
+                        break;
+                    case MessageTypes.MessageDeleted:
+                        var deletedPayload = ControlProtocol.DeserializePayload<MessageDeletedPayload>(msg);
+                        if (deletedPayload is not null)
+                        {
+                            var dp = deletedPayload;
+                            _postToUi(() => MessageDeleted?.Invoke(dp));
                         }
                         break;
                 }

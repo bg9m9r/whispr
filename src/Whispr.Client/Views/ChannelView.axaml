@@ -3,20 +3,43 @@
              xmlns:models="clr-namespace:Whispr.Client.Models"
              xmlns:conv="clr-namespace:Whispr.Client.Converters"
              xmlns:primitives="clr-namespace:Avalonia.Controls.Primitives;assembly=Avalonia.Controls"
+             xmlns:asyncImageLoader="clr-namespace:AsyncImageLoader;assembly=AsyncImageLoader.Avalonia"
              x:Class="Whispr.Client.Views.ChannelView"
              Background="{DynamicResource WhisprBackground}">
     <UserControl.Resources>
         <conv:InverseBoolConverter x:Key="InverseBool"/>
+        <conv:NotNullToBoolConverter x:Key="NotNullToBool"/>
         <conv:SpeakerIconBrushConverter x:Key="SpeakerIconBrush"/>
         <conv:SpeakingGlowEffectConverter x:Key="SpeakingGlowEffect"/>
         <conv:ChannelTypeToBoolConverter x:Key="ChannelTypeToBool"/>
         <conv:ContentToSegmentsConverter x:Key="ContentToSegments"/>
         <DataTemplate x:Key="MessageSegmentTemplate">
-            <StackPanel Orientation="Horizontal" Spacing="4">
+            <StackPanel Orientation="Horizontal" Spacing="0" Margin="0" MinWidth="0">
+                <!-- Emoji as image (Twemoji CDN) for consistent look across platforms -->
+                <Image Width="18" Height="18" Margin="0" VerticalAlignment="Center"
+                       asyncImageLoader:ImageLoader.Source="{Binding EmojiImageUrl}"
+                       IsVisible="{Binding IsEmojiImage}"/>
                 <TextBlock Text="{Binding Content}" TextWrapping="Wrap" Foreground="#e0e0e0" FontSize="14"
-                           IsVisible="{Binding IsLink, Converter={StaticResource InverseBool}}"/>
+                           FontFamily="{Binding FontFamily}" Margin="0" Padding="0" MinWidth="0"
+                           IsVisible="{Binding IsTextSegment}"/>
+                <!-- GIF embed (Tenor/Giphy): clickable image -->
+                <Button Background="Transparent" Padding="0" Margin="0" Cursor="Hand" Click="OnMessageLinkClick"
+                        IsVisible="{Binding IsGifEmbed}">
+                    <Image asyncImageLoader:ImageLoader.Source="{Binding GifEmbedImageUrl}" MaxWidth="200" MaxHeight="200"/>
+                </Button>
+                <!-- YouTube embed: thumbnail card, click opens video -->
+                <Button Background="Transparent" Padding="0" Margin="0" Cursor="Hand" Click="OnMessageLinkClick"
+                        IsVisible="{Binding IsYouTubeEmbed}">
+                    <Border Background="{DynamicResource WhisprSurface}" CornerRadius="6" Padding="4" MaxWidth="320">
+                        <StackPanel Spacing="4">
+                            <Image asyncImageLoader:ImageLoader.Source="{Binding YouTubeThumbnailUrl}" Width="320" Height="180" Stretch="UniformToFill"/>
+                            <TextBlock Text="YouTube" Foreground="{DynamicResource WhisprTextMuted}" FontSize="12"/>
+                        </StackPanel>
+                    </Border>
+                </Button>
                 <Button Content="{Binding Content}" Background="Transparent" Foreground="{DynamicResource WhisprAccent}"
-                        FontSize="14" Padding="0,0,4,0" Cursor="Hand" Click="OnMessageLinkClick"
+                        FontSize="14" FontFamily="{Binding FontFamily}"
+                        Padding="0,0,4,0" Margin="0" Cursor="Hand" Click="OnMessageLinkClick"
                         IsVisible="{Binding IsLink}"/>
             </StackPanel>
         </DataTemplate>
@@ -120,13 +143,29 @@
                                 <ItemsControl x:Name="MessageList" ItemsSource="{Binding MessageDisplayItems}" Margin="0,0,0,8">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <StackPanel Margin="0,4" Spacing="2">
+                                            <StackPanel Margin="0,4" Spacing="2" ContextRequested="OnMessageContextRequested">
+                                                <StackPanel.ContextMenu>
+                                                    <ContextMenu DataContext="{Binding DataContext, ElementName=MessageList}">
+                                                        <MenuItem Header="Edit" Command="{Binding EditMessageCommand}" IsVisible="{Binding CanEditMessage}"/>
+                                                        <MenuItem Header="Delete" Command="{Binding DeleteMessageCommand}" IsVisible="{Binding CanDeleteMessage}"/>
+                                                    </ContextMenu>
+                                                </StackPanel.ContextMenu>
                                                 <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding ShowSenderHeader}">
                                                     <TextBlock Text="{Binding Message.SenderUsername}" FontWeight="SemiBold" Foreground="{DynamicResource WhisprAccent}" FontSize="13"/>
                                                     <TextBlock Text="{Binding Message.CreatedAt, StringFormat='{}{0:g}'}" Foreground="{DynamicResource WhisprTextMuted}" FontSize="11" VerticalAlignment="Center"/>
+                                                    <TextBlock Text=" (edited)" Foreground="{DynamicResource WhisprTextMuted}" FontSize="11" VerticalAlignment="Center"
+                                                               IsVisible="{Binding Message.UpdatedAt, Converter={StaticResource NotNullToBool}}"/>
                                                 </StackPanel>
+                                                <!-- Inline edit mode -->
+                                                <Grid IsVisible="{Binding IsEditing}" ColumnDefinitions="*,Auto,Auto" Margin="0,4,0,0">
+                                                    <TextBox Grid.Column="0" Text="{Binding DataContext.EditingMessageContent, ElementName=MessageList, Mode=TwoWay}" MinWidth="120" Margin="0,0,8,0"/>
+                                                    <Button Grid.Column="1" Content="Save" Command="{Binding DataContext.CommitEditMessageCommand, ElementName=MessageList}" Margin="0,0,4,0"/>
+                                                    <Button Grid.Column="2" Content="Cancel" Command="{Binding DataContext.CancelEditMessageCommand, ElementName=MessageList}"/>
+                                                </Grid>
+                                                <!-- Normal content -->
                                                 <ItemsControl ItemsSource="{Binding Message.Content, Converter={StaticResource ContentToSegments}}"
-                                                             ItemTemplate="{StaticResource MessageSegmentTemplate}">
+                                                             ItemTemplate="{StaticResource MessageSegmentTemplate}"
+                                                             IsVisible="{Binding IsEditing, Converter={StaticResource InverseBool}}">
                                                     <ItemsControl.ItemsPanel>
                                                         <ItemsPanelTemplate>
                                                             <WrapPanel/>
@@ -138,10 +177,35 @@
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
                             </ScrollViewer>
-                            <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+                            <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" Margin="0,8,0,0">
                                 <TextBox Grid.Column="0" x:Name="MessageInputBox" Watermark="Type a message..." Text="{Binding MessageInputText, Mode=TwoWay}"
-                                         MinWidth="120" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <Button Grid.Column="1" Content="Send" Command="{Binding SendMessageCommand}" VerticalAlignment="Center"/>
+                                         MinWidth="120" VerticalAlignment="Center" Margin="0,0,8,0"
+                                         FontFamily="Noto Color Emoji"/>
+                                <Button Grid.Column="1" x:Name="EmojiPickerButton" ToolTip.Tip="Insert emoji"
+                                        Width="36" Height="36" Padding="0" VerticalAlignment="Center" Margin="0,0,8,0"
+                                        HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                                        Click="OnEmojiPickerButtonClick">
+                                    <primitives:FlyoutBase.AttachedFlyout>
+                                        <Flyout Placement="Top" ShowMode="Standard">
+                                            <ItemsControl ItemsSource="{Binding EmojiPickerList}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel MaxWidth="240" MaxHeight="180"/>
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Button Content="{Binding}" FontSize="20" FontFamily="Noto Color Emoji"
+                                                                Background="Transparent" Padding="6" Margin="2" Cursor="Hand"
+                                                                Click="OnEmojiChosen"/>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </Flyout>
+                                    </primitives:FlyoutBase.AttachedFlyout>
+                                    <TextBlock Text="😀" FontSize="18" FontFamily="Noto Color Emoji"/>
+                                </Button>
+                                <Button Grid.Column="2" Content="Send" Command="{Binding SendMessageCommand}" VerticalAlignment="Center"/>
                             </Grid>
                         </Grid>
                     </Grid>

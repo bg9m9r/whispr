@@ -28,4 +28,8 @@ public sealed class MessageEntity
     /// UTC ticks for SQLite-friendly ORDER BY. Kept in sync with CreatedAt.
     /// </summary>
     public long CreatedAtTicks { get; set; }
+
+    public DateTimeOffset? UpdatedAt { get; set; }
+
+    public long? UpdatedAtTicks { get; set; }
 }

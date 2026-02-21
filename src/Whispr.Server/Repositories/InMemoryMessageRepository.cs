@@ -11,12 +11,20 @@ public sealed class InMemoryMessageRepository : IMessageRepository
     public MessageRecord Add(Guid channelId, Guid senderId, string content)
     {
         var id = Guid.NewGuid();
-        var record = new MessageRecord(id, channelId, senderId, content, DateTimeOffset.UtcNow);
+        var record = new MessageRecord(id, channelId, senderId, content, DateTimeOffset.UtcNow, null);
         lock (_lock)
         {
             _messages.Add(record);
         }
         return record;
+    }
+
+    public MessageRecord? GetById(Guid messageId)
+    {
+        lock (_lock)
+        {
+            return _messages.FirstOrDefault(m => m.Id == messageId);
+        }
     }
 
     public IReadOnlyList<MessageRecord> GetByChannel(Guid channelId, DateTimeOffset? since = null, DateTimeOffset? before = null, int limit = 100)
@@ -29,6 +37,30 @@ public sealed class InMemoryMessageRepository : IMessageRepository
             if (since is { } s)
                 return filtered.Where(m => m.CreatedAt > s).OrderBy(m => m.CreatedAt).Take(limit).ToList();
             return filtered.OrderByDescending(m => m.CreatedAt).Take(limit).OrderBy(m => m.CreatedAt).ToList();
+        }
+    }
+
+    public MessageRecord? Update(Guid messageId, string content)
+    {
+        lock (_lock)
+        {
+            var idx = _messages.FindIndex(m => m.Id == messageId);
+            if (idx < 0) return null;
+            var existing = _messages[idx];
+            var updated = existing with { Content = content, UpdatedAt = DateTimeOffset.UtcNow };
+            _messages[idx] = updated;
+            return updated;
+        }
+    }
+
+    public bool Delete(Guid messageId)
+    {
+        lock (_lock)
+        {
+            var idx = _messages.FindIndex(m => m.Id == messageId);
+            if (idx < 0) return false;
+            _messages.RemoveAt(idx);
+            return true;
         }
     }
 }

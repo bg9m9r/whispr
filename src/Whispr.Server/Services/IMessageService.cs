@@ -16,4 +16,14 @@ public interface IMessageService
     /// Gets message history for a channel. Use since for messages after a time, before for older messages (e.g. scroll-up paging). Returns empty if no access.
     /// </summary>
     IReadOnlyList<MessageRecord> GetHistory(Guid channelId, Guid requesterId, DateTimeOffset? since = null, DateTimeOffset? before = null, int limit = 100);
+
+    /// <summary>
+    /// Updates a message. Only the sender may edit. Returns updated record or null.
+    /// </summary>
+    MessageRecord? Update(Guid messageId, Guid requesterId, string content);
+
+    /// <summary>
+    /// Deletes a message. Sender or admin may delete. Returns true if deleted.
+    /// </summary>
+    bool Delete(Guid messageId, Guid requesterId);
 }

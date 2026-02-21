@@ -21,6 +21,8 @@ public interface IChannelService : IDisposable
     event Action<int?>? PingLatencyUpdated;
     event Action<ChatMessagePayload>? MessageReceived;
     event Action<MessageHistoryPayload>? MessageHistoryReceived;
+    event Action<ChatMessagePayload>? MessageUpdated;
+    event Action<MessageDeletedPayload>? MessageDeleted;
 
     void Start(ChannelJoinedResult roomResult, ServerStatePayload serverState);
     void Stop();
@@ -46,4 +48,6 @@ public interface IChannelService : IDisposable
 
     Task SendMessageAsync(Guid channelId, string content, CancellationToken ct = default);
     Task RequestMessageHistoryAsync(Guid channelId, DateTimeOffset? since = null, DateTimeOffset? before = null, int limit = 100, CancellationToken ct = default);
+    Task EditMessageAsync(Guid channelId, Guid messageId, string content, CancellationToken ct = default);
+    Task DeleteMessageAsync(Guid channelId, Guid messageId, CancellationToken ct = default);
 }

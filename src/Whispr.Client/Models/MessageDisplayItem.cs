@@ -4,5 +4,6 @@ namespace Whispr.Client.Models;
 
 /// <summary>
 /// Wraps a chat message for display. When ShowSenderHeader is true, the sender name and timestamp are shown (e.g. first message or when sender changes).
+/// When IsEditing is true, the row shows the inline editor instead of the message content.
 /// </summary>
-public sealed record MessageDisplayItem(ChatMessagePayload Message, bool ShowSenderHeader);
+public sealed record MessageDisplayItem(ChatMessagePayload Message, bool ShowSenderHeader, bool IsEditing = false);

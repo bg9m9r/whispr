@@ -171,4 +171,5 @@ public sealed class ControlMessageRouterTests
         var msg = ControlProtocol.Serialize(MessageTypes.Pong, new { });
         await router.SendToUserAsync(Guid.NewGuid(), msg);
     }
+
 }

@@ -3,10 +3,17 @@ using Microsoft.EntityFrameworkCore;
 namespace Whispr.Server.Data;
 
 /// <summary>
-/// Ensures database schema exists and seeds default permissions/roles/channels.
+/// Applies EF Core migrations at startup and seeds default permissions/roles/channels.
+/// Users can run the server without any EF knowledge; schema is created/updated automatically.
 /// </summary>
 public static class DbInitializer
 {
+    /// <summary>
+    /// Migration id of the initial migration (full schema). Used to baseline existing DBs
+    /// that were created with EnsureCreated and have no __EFMigrationsHistory.
+    /// </summary>
+    private const string InitialMigrationId = "20260221152520_AddMessageUpdatedAt";
+
     public static void Initialize(string dbPath)
     {
         if (string.IsNullOrWhiteSpace(dbPath))
@@ -21,56 +28,57 @@ public static class DbInitializer
             .Options;
 
         using var ctx = new WhisprDbContext(options);
-        ctx.Database.EnsureCreated();
-        EnsureMessagesTable(ctx);
-        EnsureMessageCreatedAtTicksColumn(ctx);
-        EnsureChannelTypeColumn(ctx);
+
+        // Baseline existing DBs that were created with EnsureCreated (no migrations history)
+        BaselineExistingDatabaseIfNeeded(ctx);
+
+        // Apply pending migrations; creates DB and schema on first run
+        ctx.Database.Migrate();
+
         SeedPermissionsAndRoles(ctx);
         SeedDefaultChannel(ctx);
         MigrateFromJsonIfNeeded(ctx, path);
         SeedAdminUserRoles(ctx);
     }
 
-    private static void EnsureMessagesTable(WhisprDbContext ctx)
+    /// <summary>
+    /// If the database has tables but no __EFMigrationsHistory (e.g. created with EnsureCreated),
+    /// create the history table and record the initial migration so Migrate() won't re-apply it.
+    /// </summary>
+    private static void BaselineExistingDatabaseIfNeeded(WhisprDbContext ctx)
     {
         try
         {
+            var hasHistoryTable = ctx.Database.SqlQueryRaw<int>(
+                "SELECT COUNT(*) AS Value FROM sqlite_master WHERE type='table' AND name='__EFMigrationsHistory'").FirstOrDefault() > 0;
+            if (hasHistoryTable)
+            {
+                var hasAny = ctx.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS Value FROM __EFMigrationsHistory").FirstOrDefault() > 0;
+                if (hasAny)
+                    return; // Already using migrations
+            }
+
+            // Check for existing tables from old EnsureCreated
+            var tableCount = ctx.Database.SqlQueryRaw<int>(
+                "SELECT COUNT(*) AS Value FROM sqlite_master WHERE type='table' AND name IN ('Messages','Users','Channels')").FirstOrDefault();
+            if (tableCount == 0)
+                return; // New DB; Migrate() will create everything
+
+            // Old DB with no migrations history: baseline so we don't re-run the initial migration
             ctx.Database.ExecuteSqlRaw("""
-                CREATE TABLE IF NOT EXISTS Messages (
-                    Id TEXT NOT NULL PRIMARY KEY,
-                    ChannelId TEXT NOT NULL,
-                    SenderId TEXT NOT NULL,
-                    Content TEXT NOT NULL,
-                    CreatedAt TEXT NOT NULL
+                CREATE TABLE IF NOT EXISTS __EFMigrationsHistory (
+                    MigrationId TEXT NOT NULL PRIMARY KEY,
+                    ProductVersion TEXT NOT NULL
                 )
                 """);
-            ctx.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_Messages_ChannelId ON Messages(ChannelId)");
-            ctx.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_Messages_CreatedAt ON Messages(CreatedAt)");
+            ctx.Database.ExecuteSqlRaw(
+                "INSERT OR IGNORE INTO __EFMigrationsHistory (MigrationId, ProductVersion) VALUES ({0}, {1})",
+                InitialMigrationId,
+                "9.0.0");
         }
         catch
         {
-            // Table/indexes may already exist from EnsureCreated
-        }
-    }
-
-    private static void EnsureMessageCreatedAtTicksColumn(WhisprDbContext ctx)
-    {
-        try
-        {
-            ctx.Database.ExecuteSqlRaw("ALTER TABLE Messages ADD COLUMN CreatedAtTicks INTEGER NOT NULL DEFAULT 0");
-        }
-        catch
-        {
-            // Column may already exist
-        }
-
-        // Backfill: set CreatedAtTicks from CreatedAt for any rows still at 0
-        var needBackfill = ctx.Messages.Any(m => m.CreatedAtTicks == 0);
-        if (needBackfill)
-        {
-            foreach (var m in ctx.Messages.Where(m => m.CreatedAtTicks == 0))
-                m.CreatedAtTicks = m.CreatedAt.UtcTicks;
-            ctx.SaveChanges();
+            // If anything fails, Migrate() will run and may fail on duplicate table; that's acceptable
         }
     }
 
@@ -122,18 +130,6 @@ public static class DbInitializer
         catch
         {
             // ignore migration errors
-        }
-    }
-
-    private static void EnsureChannelTypeColumn(WhisprDbContext ctx)
-    {
-        try
-        {
-            ctx.Database.ExecuteSqlRaw("ALTER TABLE Channels ADD COLUMN ChannelType INTEGER NOT NULL DEFAULT 0");
-        }
-        catch
-        {
-            // Column may already exist
         }
     }
 

@@ -31,6 +31,8 @@ public sealed class FakeChannelService : IChannelService
     public event Action<int?>? PingLatencyUpdated;
     public event Action<ChatMessagePayload>? MessageReceived;
     public event Action<MessageHistoryPayload>? MessageHistoryReceived;
+    public event Action<ChatMessagePayload>? MessageUpdated;
+    public event Action<MessageDeletedPayload>? MessageDeleted;
 
     public int? PingLatencyMs => null;
 
@@ -146,6 +148,10 @@ public sealed class FakeChannelService : IChannelService
     public Task SendMessageAsync(Guid channelId, string content, CancellationToken ct = default) => Task.CompletedTask;
 
     public Task RequestMessageHistoryAsync(Guid channelId, DateTimeOffset? since = null, DateTimeOffset? before = null, int limit = 100, CancellationToken ct = default) => Task.CompletedTask;
+
+    public Task EditMessageAsync(Guid channelId, Guid messageId, string content, CancellationToken ct = default) => Task.CompletedTask;
+
+    public Task DeleteMessageAsync(Guid channelId, Guid messageId, CancellationToken ct = default) => Task.CompletedTask;
 
     public void Dispose() { }
 }

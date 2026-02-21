@@ -27,6 +27,8 @@ public static class MessageTypes
     public const string SetChannelUserPermission = "set_channel_user_permission";
     public const string SendMessage = "send_message";
     public const string GetMessageHistory = "get_message_history";
+    public const string EditMessage = "edit_message";
+    public const string DeleteMessage = "delete_message";
 
     // Server → Client
     public const string LoginResponse = "login_response";
@@ -45,4 +47,6 @@ public static class MessageTypes
     public const string ChannelPermissions = "channel_permissions";
     public const string MessageReceived = "message_received";
     public const string MessageHistory = "message_history";
+    public const string MessageUpdated = "message_updated";
+    public const string MessageDeleted = "message_deleted";
 }

@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using System.Diagnostics;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -7,7 +8,6 @@ using Avalonia.VisualTree;
 using Whispr.Client.Models;
 using Whispr.Client.Services;
 using Whispr.Client.ViewModels;
-using Whispr.Core.Models;
 using Whispr.Core.Protocol;
 
 namespace Whispr.Client.Views;
@@ -34,7 +34,23 @@ public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
         TalkButton.AddHandler(InputElement.PointerReleasedEvent, OnTalkButtonReleased, handledEventsToo: true);
         TalkButton.AddHandler(InputElement.PointerCaptureLostEvent, OnTalkButtonCaptureLost, handledEventsToo: true);
         MessageInputBox.AddHandler(InputElement.KeyDownEvent, OnMessageInputKeyDown, handledEventsToo: false);
+        // Tunnel runs before the TextBox processes the key; we handle Space when empty so the TextBox never inserts a tab-like character.
+        MessageInputBox.AddHandler(InputElement.KeyDownEvent, OnMessageInputKeyDownTunnel, RoutingStrategies.Tunnel);
         MessageScroll.ScrollChanged += OnMessageScrollChanged;
+        _viewModel.MessageDisplayItems.CollectionChanged += OnMessageDisplayItemsChanged;
+    }
+
+    private void OnMessageDisplayItemsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.NewItems?.Count > 0 || e.Action == NotifyCollectionChangedAction.Reset)
+            Avalonia.Threading.Dispatcher.UIThread.Post(ScrollMessageToBottomIfRequested, Avalonia.Threading.DispatcherPriority.Loaded);
+    }
+
+    private void ScrollMessageToBottomIfRequested()
+    {
+        if (!_viewModel.RequestScrollToBottom) return;
+        _viewModel.RequestScrollToBottom = false;
+        MessageScroll.ScrollToEnd();
     }
 
     public void RestartAudioWithNewSettings() => _viewModel.RestartAudio();
@@ -48,14 +64,14 @@ public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
     {
         var owner = this.FindAncestorOfType<Window>();
         var dialog = new PermissionsWindow(owner, userId, username, _channelService);
-        await (dialog.ShowDialog(owner ?? throw new InvalidOperationException("No owner window")));
+        await dialog.ShowDialog(owner ?? throw new InvalidOperationException("No owner window"));
     }
 
     async Task IChannelViewHost.ShowChannelPermissionsWindowAsync(Guid channelId, string channelName)
     {
         var owner = this.FindAncestorOfType<Window>();
         var dialog = new ChannelPermissionsWindow(owner, channelId, channelName, _channelService);
-        await (dialog.ShowDialog(owner ?? throw new InvalidOperationException("No owner window")));
+        await dialog.ShowDialog(owner ?? throw new InvalidOperationException("No owner window"));
     }
 
     void IChannelViewHost.RestartAudioWithNewSettings() => _viewModel.RestartAudio();
@@ -111,6 +127,13 @@ public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
         _viewModel.ContextMenuTargetNode = node;
     }
 
+    private void OnMessageContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (sender is not Control control || control.DataContext is not MessageDisplayItem item)
+            return;
+        _viewModel.ContextMessageItem = item;
+    }
+
     private void OnCreateChannelContextClick(object? sender, RoutedEventArgs e)
     {
         FlyoutBase.ShowAttachedFlyout(ChannelTreeHost);
@@ -136,6 +159,38 @@ public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
             _ = _viewModel.LoadOlderMessagesAsync();
     }
 
+    private void OnMessageInputKeyDownTunnel(object? sender, KeyEventArgs e)
+    {
+        // Space is sometimes turned into a tab or other character by the control. Always insert a normal space (U+0020)
+        // ourselves so copy/paste and display are consistent.
+        // When the character before the caret is an emoji, the layout engine draws the following space with the emoji font (wide).
+        // Inserting a zero-width space (U+200B) before the space forces a new run so the space uses the primary font.
+        if (e.Key != Key.Space) return;
+        e.Handled = true;
+        var text = MessageInputBox.Text ?? "";
+        var caret = Math.Clamp(MessageInputBox.CaretIndex, 0, text.Length);
+        var insert = IsEmojiCodePoint(GetLastCodePoint(text, caret)) ? "\u200B\u0020" : "\u0020";
+        MessageInputBox.Text = text.Insert(caret, insert);
+        MessageInputBox.CaretIndex = caret + insert.Length;
+    }
+
+    private static int GetLastCodePoint(string text, int caret)
+    {
+        if (string.IsNullOrEmpty(text) || caret <= 0 || caret > text.Length) return -1;
+        var i = caret - 1;
+        if (char.IsLowSurrogate(text[i]) && i > 0 && char.IsHighSurrogate(text[i - 1]))
+            return char.ConvertToUtf32(text[i - 1], text[i]);
+        return text[i];
+    }
+
+    private static bool IsEmojiCodePoint(int codePoint)
+    {
+        if (codePoint < 0) return false;
+        return codePoint is >= 0x2600 and <= 0x26FF or >= 0x2700 and <= 0x27BF
+            or >= 0x1F000 and <= 0x1F02F or >= 0x1F300 and <= 0x1F9FF
+            or >= 0x1FA00 and <= 0x1FA6F;
+    }
+
     private void OnMessageInputKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key != Key.Enter)
@@ -148,9 +203,27 @@ public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
             _viewModel.SendMessageCommand.Execute(null);
     }
 
+    public void OnEmojiPickerButtonClick(object? sender, RoutedEventArgs e)
+    {
+        FlyoutBase.ShowAttachedFlyout(EmojiPickerButton);
+    }
+
+    public void OnEmojiChosen(object? sender, RoutedEventArgs e)
+    {
+        var emoji = (sender as Button)?.Content as string;
+        if (string.IsNullOrEmpty(emoji)) return;
+        var text = MessageInputBox.Text ?? "";
+        var caret = Math.Clamp(MessageInputBox.CaretIndex, 0, text.Length);
+        MessageInputBox.Text = text.Insert(caret, emoji);
+        MessageInputBox.CaretIndex = caret + emoji.Length;
+        FlyoutBase.GetAttachedFlyout(EmojiPickerButton)?.Hide();
+    }
+
     private void OnMessageLinkClick(object? sender, RoutedEventArgs e)
     {
-        if (e.Source is not Button button || button.DataContext is not MessageContentSegment segment || !segment.IsLink)
+        if (e.Source is not Button button || button.DataContext is not MessageContentSegment segment)
+            return;
+        if (!segment.IsLink && !segment.IsGifEmbed && !segment.IsYouTubeEmbed)
             return;
         var url = segment.Content;
         if (string.IsNullOrWhiteSpace(url) || (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
@@ -187,6 +260,7 @@ public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
     public void Dispose()
     {
         MessageScroll.ScrollChanged -= OnMessageScrollChanged;
+        _viewModel.MessageDisplayItems.CollectionChanged -= OnMessageDisplayItemsChanged;
         _viewModel.TreeRefreshed -= ExpandAllNodesWhenReady;
         _viewModel.Dispose();
     }
