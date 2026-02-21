@@ -23,11 +23,11 @@ public sealed record MessageContentSegment(string Content, bool IsLink, bool Use
     /// <summary>Text/link segments: font for display. Ignored when <see cref="IsEmojiImage"/> is true.</summary>
     public string FontFamily => UseEmojiFont ? "Noto Color Emoji" : "sans-serif";
 
-    /// <summary>When <see cref="IsEmojiImage"/> is true, Twemoji CDN URL (SVG) for the emoji in <see cref="Content"/>.</summary>
-    public string? EmojiImageUrl => IsEmojiImage ? GetTwemojiSvgUrl(Content) : null;
+    /// <summary>When <see cref="IsEmojiImage"/> is true, Twemoji CDN URL (PNG) for the emoji in <see cref="Content"/>.</summary>
+    public string? EmojiImageUrl => IsEmojiImage ? GetTwemojiImageUrl(Content) : null;
 
-    /// <summary>Twemoji CDN (Discord-style): SVG by Unicode codepoint(s). e.g. 1f600 or 1f1fa-1f1f8.</summary>
-    private static string? GetTwemojiSvgUrl(string emoji)
+    /// <summary>Twemoji CDN: 72x72 PNG by Unicode codepoint(s). Avalonia Image loads PNG from URL; SVG from URL is not supported.</summary>
+    private static string? GetTwemojiImageUrl(string emoji)
     {
         if (string.IsNullOrEmpty(emoji)) return null;
         var parts = new List<string>();
@@ -47,8 +47,8 @@ public sealed record MessageContentSegment(string Content, bool IsLink, bool Use
             parts.Add(cp.ToString("x"));
         }
         if (parts.Count == 0) return null;
-        const string baseUrl = "https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/svg/";
-        return baseUrl + string.Join("-", parts) + ".svg";
+        const string baseUrl = "https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/72x72/";
+        return baseUrl + string.Join("-", parts) + ".png";
     }
 
     /// <summary>Resolves Tenor/Giphy page URL to a direct image URL when possible; otherwise returns the original.</summary>
