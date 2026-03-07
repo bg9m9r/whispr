@@ -44,11 +44,12 @@ jobs:
         run: dotnet publish src/Whispr.Client/Whispr.Client.csproj -c Release -r ${{ matrix.rid }} --self-contained -o publish
 
       - name: Sign Windows executables
-        if: matrix.archive == 'zip' && secrets.WINDOWS_CODESIGN_PFX_BASE64 != ''
+        if: matrix.archive == 'zip'
         env:
           PFX_BASE64: ${{ secrets.WINDOWS_CODESIGN_PFX_BASE64 }}
           PFX_PASSWORD: ${{ secrets.WINDOWS_CODESIGN_PFX_PASSWORD }}
         run: |
+          if ([string]::IsNullOrEmpty($env:PFX_BASE64)) { Write-Host "Skipping code signing (no certificate configured)"; exit 0 }
           $pfxPath = Join-Path $env:TEMP "codesign.pfx"
           [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:PFX_BASE64))
           try {
@@ -70,11 +71,12 @@ jobs:
           Move-Item -Path installer/bin/Release/Whispr*.msi -Destination whispr-client-${{ matrix.rid }}.msi
 
       - name: Sign MSI
-        if: matrix.archive == 'zip' && secrets.WINDOWS_CODESIGN_PFX_BASE64 != ''
+        if: matrix.archive == 'zip'
         env:
           PFX_BASE64: ${{ secrets.WINDOWS_CODESIGN_PFX_BASE64 }}
           PFX_PASSWORD: ${{ secrets.WINDOWS_CODESIGN_PFX_PASSWORD }}
         run: |
+          if ([string]::IsNullOrEmpty($env:PFX_BASE64)) { Write-Host "Skipping code signing (no certificate configured)"; exit 0 }
           $pfxPath = Join-Path $env:TEMP "codesign.pfx"
           [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:PFX_BASE64))
           try {
