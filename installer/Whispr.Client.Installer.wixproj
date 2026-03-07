@@ -1,0 +1,21 @@
+<Project Sdk="WixToolset.Sdk/6.0.2">
+  <PropertyGroup>
+    <OutputType>Package</OutputType>
+    <PackageId>Whispr</PackageId>
+    <PackageName>Whispr</PackageName>
+    <PackageVersion Condition="'$(PackageVersion)' == ''">0.0.0</PackageVersion>
+    <Publisher>Whispr</Publisher>
+    <DefineConstants>PackageVersion=$(PackageVersion)</DefineConstants>
+    <PublishPath Condition="'$(PublishPath)' == ''">$(MSBuildThisFileDirectory)..\src\Whispr.Client\bin\Release\net10.0\win-x64\publish</PublishPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <HarvestDirectory Include="$(PublishPath)"
+                      ComponentGroupName="HarvestedClient"
+                      DirectoryRefId="InstallFolder"
+                      SuppressRootDirectory="true" />
+    <BindPath Include="$(PublishPath)" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Heat" Version="6.0.2" />
+  </ItemGroup>
+</Project>

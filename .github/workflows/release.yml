@@ -43,6 +43,48 @@ jobs:
       - name: Publish Client
         run: dotnet publish src/Whispr.Client/Whispr.Client.csproj -c Release -r ${{ matrix.rid }} --self-contained -o publish
 
+      - name: Sign Windows executables
+        if: matrix.archive == 'zip' && secrets.WINDOWS_CODESIGN_PFX_BASE64 != ''
+        env:
+          PFX_BASE64: ${{ secrets.WINDOWS_CODESIGN_PFX_BASE64 }}
+          PFX_PASSWORD: ${{ secrets.WINDOWS_CODESIGN_PFX_PASSWORD }}
+        run: |
+          $pfxPath = Join-Path $env:TEMP "codesign.pfx"
+          [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:PFX_BASE64))
+          try {
+            $signtool = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter "signtool.exe" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+            if (-not $signtool) { throw "signtool.exe not found" }
+            Get-ChildItem -Path publish -Include *.exe,*.dll -Recurse | ForEach-Object {
+              & $signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /f $pfxPath /p $env:PFX_PASSWORD $_.FullName
+            }
+          } finally {
+            Remove-Item -Path $pfxPath -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Build MSI (Windows)
+        if: matrix.archive == 'zip'
+        run: |
+          $version = if ("${{ github.event_name }}" -eq "workflow_dispatch") { "${{ github.event.inputs.version }}" } else { "${{ github.ref_name }}" -replace '^v', '' }
+          $publishPath = Join-Path $env:GITHUB_WORKSPACE "publish"
+          dotnet build installer/Whispr.Client.Installer.wixproj -c Release -p:PublishPath=$publishPath -p:PackageVersion=$version
+          Move-Item -Path installer/bin/Release/Whispr*.msi -Destination whispr-client-${{ matrix.rid }}.msi
+
+      - name: Sign MSI
+        if: matrix.archive == 'zip' && secrets.WINDOWS_CODESIGN_PFX_BASE64 != ''
+        env:
+          PFX_BASE64: ${{ secrets.WINDOWS_CODESIGN_PFX_BASE64 }}
+          PFX_PASSWORD: ${{ secrets.WINDOWS_CODESIGN_PFX_PASSWORD }}
+        run: |
+          $pfxPath = Join-Path $env:TEMP "codesign.pfx"
+          [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:PFX_BASE64))
+          try {
+            $signtool = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter "signtool.exe" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+            if (-not $signtool) { throw "signtool.exe not found" }
+            & $signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /f $pfxPath /p $env:PFX_PASSWORD "whispr-client-${{ matrix.rid }}.msi"
+          } finally {
+            Remove-Item -Path $pfxPath -Force -ErrorAction SilentlyContinue
+          }
+
       - name: Archive (Windows)
         if: matrix.archive == 'zip'
         run: |
@@ -54,11 +96,21 @@ jobs:
           tar czf whispr-client-${{ matrix.rid }}.tar.gz -C publish .
           rm -rf publish
 
-      - name: Upload artifact
+      - name: Upload artifact (Windows)
+        if: matrix.archive == 'zip'
         uses: actions/upload-artifact@v4
         with:
           name: client-${{ matrix.rid }}
-          path: whispr-client-${{ matrix.rid }}.${{ matrix.archive == 'zip' && 'zip' || 'tar.gz' }}
+          path: |
+            whispr-client-${{ matrix.rid }}.zip
+            whispr-client-${{ matrix.rid }}.msi
+
+      - name: Upload artifact (Linux/macOS)
+        if: matrix.archive == 'tar.gz'
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-${{ matrix.rid }}
+          path: whispr-client-${{ matrix.rid }}.tar.gz
 
   build-server:
     strategy:

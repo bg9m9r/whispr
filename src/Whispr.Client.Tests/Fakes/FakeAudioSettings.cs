@@ -16,13 +16,14 @@ public sealed class FakeAudioSettings : IAudioSettings
     public int NoiseGateOpen { get; set; } = 15;
     public int NoiseGateClose { get; set; } = 8;
     public int NoiseGateHoldMs { get; set; } = 240;
+    public string? PttKeyOrButton { get; set; } = "Key:V";
 
     public bool SaveCalled { get; private set; }
 
-    public (string? AudioBackend, string? CaptureDevice, string? PlaybackDevice, bool VoiceActivated, int MicCutoffDelayMs, bool NoiseSuppression, int NoiseGateOpen, int NoiseGateClose, int NoiseGateHoldMs) Load() =>
-        (AudioBackend, CaptureDevice, PlaybackDevice, VoiceActivated, MicCutoffDelayMs, NoiseSuppression, NoiseGateOpen, NoiseGateClose, NoiseGateHoldMs);
+    public (string? AudioBackend, string? CaptureDevice, string? PlaybackDevice, bool VoiceActivated, int MicCutoffDelayMs, bool NoiseSuppression, int NoiseGateOpen, int NoiseGateClose, int NoiseGateHoldMs, string? PttKeyOrButton) Load() =>
+        (AudioBackend, CaptureDevice, PlaybackDevice, VoiceActivated, MicCutoffDelayMs, NoiseSuppression, NoiseGateOpen, NoiseGateClose, NoiseGateHoldMs, PttKeyOrButton);
 
-    public void Save(string? audioBackend = null, string? captureDevice = null, string? playbackDevice = null, bool voiceActivated = false, int micCutoffDelayMs = 200, bool noiseSuppression = false, int noiseGateOpen = 15, int noiseGateClose = 8, int noiseGateHoldMs = 240)
+    public void Save(string? audioBackend = null, string? captureDevice = null, string? playbackDevice = null, bool voiceActivated = false, int micCutoffDelayMs = 200, bool noiseSuppression = false, int noiseGateOpen = 15, int noiseGateClose = 8, int noiseGateHoldMs = 240, string? pttKeyOrButton = null)
     {
         SaveCalled = true;
         AudioBackend = audioBackend;
@@ -34,5 +35,6 @@ public sealed class FakeAudioSettings : IAudioSettings
         NoiseGateOpen = noiseGateOpen;
         NoiseGateClose = noiseGateClose;
         NoiseGateHoldMs = noiseGateHoldMs;
+        PttKeyOrButton = pttKeyOrButton ?? "Key:V";
     }
 }

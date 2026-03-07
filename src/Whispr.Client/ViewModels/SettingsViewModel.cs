@@ -70,13 +70,23 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string _selectedOutputDevice = DefaultLabel;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PttKeyOrButtonDisplay))]
+    private string _pttKeyOrButton = "Key:V";
+
+    [ObservableProperty]
+    private bool _isListeningForPttKey;
+
+    /// <summary>Short label for the current PTT binding, e.g. "V", "Space", "Middle mouse".</summary>
+    public string PttKeyOrButtonDisplay => PttKeyOrButtonToDisplay(PttKeyOrButton);
+
     public SettingsViewModel(ISettingsViewHost host, IAudioSettings audioSettings, IAudioDeviceProvider deviceProvider)
     {
         _host = host;
         _audioSettings = audioSettings;
         _deviceProvider = deviceProvider;
 
-        var (_, capture, playback, voiceActivated, micCutoffDelayMs, noiseSuppression, noiseGateOpen, noiseGateClose, noiseGateHoldMs) = _audioSettings.Load();
+        var (_, capture, playback, voiceActivated, micCutoffDelayMs, noiseSuppression, noiseGateOpen, noiseGateClose, noiseGateHoldMs, pttKeyOrButton) = _audioSettings.Load();
         VoiceActivated = voiceActivated;
         NoiseSuppression = noiseSuppression;
         CutoffDelayMs = micCutoffDelayMs;
@@ -84,6 +94,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         NoiseGateClose = noiseGateClose;
         NoiseGateHoldMs = noiseGateHoldMs;
         TestThreshold = noiseGateOpen;
+        PttKeyOrButton = pttKeyOrButton ?? "Key:V";
 
         InputDevices = [DefaultLabel, .. _deviceProvider.GetCaptureDevices(null)];
         OutputDevices = [DefaultLabel, .. _deviceProvider.GetPlaybackDevices(null)];
@@ -142,6 +153,49 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
+    private void StartListeningForPttKey()
+    {
+        IsListeningForPttKey = true;
+    }
+
+    /// <summary>Called by the view when a key or mouse button was captured as the PTT binding.</summary>
+    public void SetPttBinding(string keyOrButton)
+    {
+        PttKeyOrButton = keyOrButton;
+        IsListeningForPttKey = false;
+    }
+
+    private static string PttKeyOrButtonToDisplay(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return "V";
+        if (value.StartsWith("Key:", StringComparison.OrdinalIgnoreCase))
+        {
+            var key = value.Length > 4 ? value[4..] : "";
+            return key switch
+            {
+                "Space" => "Space",
+                "Return" => "Enter",
+                "Back" => "Backspace",
+                _ => key
+            };
+        }
+        if (value.StartsWith("Mouse:", StringComparison.OrdinalIgnoreCase))
+        {
+            var btn = value.Length > 6 ? value[6..] : "";
+            return btn switch
+            {
+                "Left" => "Left mouse",
+                "Right" => "Right mouse",
+                "Middle" => "Middle mouse",
+                "XButton1" => "Side button 1",
+                "XButton2" => "Side button 2",
+                _ => btn.Length > 0 ? btn : "Mouse"
+            };
+        }
+        return value;
+    }
+
+    [RelayCommand]
     private void Save()
     {
         _audioSettings.Save(
@@ -153,7 +207,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
             NoiseSuppression,
             NoiseGateOpen,
             NoiseGateClose,
-            NoiseGateHoldMs);
+            NoiseGateHoldMs,
+            PttKeyOrButton);
         SavedTextVisible = true;
         _host.RefreshLayout();
         _hideSavedTimer?.Dispose();

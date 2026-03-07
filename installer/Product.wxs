@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Id="*"
+           Name="Whispr"
+           Manufacturer="Whispr"
+           Version="$(var.PackageVersion)"
+           UpgradeCode="a1b2c3d4-e5f6-7890-abcd-ef1234567890">
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Whispr is already installed." />
+    <Media Id="1" Cabinet="media1.cab" EmbedCab="yes" />
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFilesFolder">
+        <Directory Id="InstallFolder" Name="Whispr" />
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="ApplicationProgramsFolder" Name="Whispr" />
+      </Directory>
+    </Directory>
+    <Feature Id="ProductFeature" Title="Whispr" Level="1">
+      <ComponentGroupRef Id="HarvestedClient" />
+      <Component Id="ApplicationShortcut" Directory="ApplicationProgramsFolder">
+        <Shortcut Id="ApplicationStartMenuShortcut"
+                  Name="Whispr"
+                  Description="Whispr voice chat client"
+                  Target="[InstallFolder]Whispr.Client.exe"
+                  WorkingDirectory="InstallFolder" />
+        <RemoveFolder Id="ApplicationProgramsFolder" Directory="ApplicationProgramsFolder" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\Whispr" Name="installed" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </Feature>
+  </Package>
+</Wix>

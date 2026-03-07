@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:Whispr.Client.Converters;assembly=Whispr.Client"
              x:Class="Whispr.Client.Views.SettingsView"
              Background="{DynamicResource WhisprBackground}">
     <Grid RowDefinitions="Auto,*" PointerPressed="OnPointerPressed">
@@ -43,6 +44,15 @@
         <CheckBox x:Name="NoiseSuppressionCheck" Content="Noise suppression (RNNoise – filter background noise)"
                   IsChecked="{Binding NoiseSuppression, Mode=TwoWay}"
                   Foreground="{DynamicResource WhisprTextSecondary}" Margin="0,8,0,0"/>
+
+        <TextBlock Text="Push-to-talk key:" FontWeight="SemiBold" Foreground="{DynamicResource WhisprTextSecondary}" Margin="0,16,0,4"/>
+        <StackPanel Orientation="Horizontal" Spacing="12">
+            <TextBlock x:Name="PttKeyDisplay" Text="{Binding PttKeyOrButtonDisplay}" Foreground="{DynamicResource WhisprTextSecondary}" VerticalAlignment="Center"/>
+            <Button x:Name="SetPttKeyButton" Content="Set" Command="{Binding StartListeningForPttKeyCommand}"
+                    IsEnabled="{Binding IsListeningForPttKey, Converter={x:Static conv:InverseBoolConverter.Instance}}"/>
+            <TextBlock Text="Press any key or mouse button..." Foreground="{DynamicResource WhisprTextMuted}" FontSize="12" VerticalAlignment="Center"
+                       IsVisible="{Binding IsListeningForPttKey}"/>
+        </StackPanel>
 
         <TextBlock Text="Noise gate (voice activation)" FontWeight="SemiBold" Foreground="{DynamicResource WhisprTextSecondary}" Margin="0,16,0,4"/>
         <TextBlock Text="Open threshold (level above noise to start transmitting, dB scale):" FontSize="11" Foreground="{DynamicResource WhisprTextMuted}"/>

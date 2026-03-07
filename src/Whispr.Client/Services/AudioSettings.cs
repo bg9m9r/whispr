@@ -16,17 +16,19 @@ public static class AudioSettings
         return Path.Combine(dir, "audio-settings.json");
     }
 
+    private const string DefaultPttKeyOrButton = "Key:V";
+
     /// <summary>
     /// Loads saved audio settings. Returns defaults if file doesn't exist.
     /// audioBackend: null = system default, "pulse" = PulseAudio, "alsa" = ALSA (Linux only).
     /// </summary>
-    public static (string? AudioBackend, string? CaptureDevice, string? PlaybackDevice, bool VoiceActivated, int MicCutoffDelayMs, bool NoiseSuppression, int NoiseGateOpen, int NoiseGateClose, int NoiseGateHoldMs) Load()
+    public static (string? AudioBackend, string? CaptureDevice, string? PlaybackDevice, bool VoiceActivated, int MicCutoffDelayMs, bool NoiseSuppression, int NoiseGateOpen, int NoiseGateClose, int NoiseGateHoldMs, string? PttKeyOrButton) Load()
     {
         try
         {
             var path = GetSettingsPath();
             if (!File.Exists(path))
-                return (null, null, null, false, 200, false, 15, 8, 240);
+                return (null, null, null, false, 200, false, 15, 8, 240, DefaultPttKeyOrButton);
 
             var json = File.ReadAllText(path);
             var doc = JsonDocument.Parse(json);
@@ -61,19 +63,22 @@ public static class AudioSettings
             var noiseGateHoldMs = root.TryGetProperty("noiseGateHoldMs", out var gh) && gh.TryGetInt32(out var hold)
                 ? Math.Clamp(hold, 0, 500)
                 : 240;
+            var pttKeyOrButton = root.TryGetProperty("pttKeyOrButton", out var ptt) && ptt.ValueKind == JsonValueKind.String
+                ? ptt.GetString()
+                : DefaultPttKeyOrButton;
 
-            return (string.IsNullOrEmpty(audioBackend) ? null : audioBackend, string.IsNullOrEmpty(capture) ? null : capture, string.IsNullOrEmpty(playback) ? null : playback, voiceActivated, micCutoffDelayMs, noiseSuppression, noiseGateOpen, noiseGateClose, noiseGateHoldMs);
+            return (string.IsNullOrEmpty(audioBackend) ? null : audioBackend, string.IsNullOrEmpty(capture) ? null : capture, string.IsNullOrEmpty(playback) ? null : playback, voiceActivated, micCutoffDelayMs, noiseSuppression, noiseGateOpen, noiseGateClose, noiseGateHoldMs, string.IsNullOrEmpty(pttKeyOrButton) ? DefaultPttKeyOrButton : pttKeyOrButton);
         }
         catch
         {
-            return (null, null, null, false, 200, false, 15, 8, 240);
+            return (null, null, null, false, 200, false, 15, 8, 240, DefaultPttKeyOrButton);
         }
     }
 
     /// <summary>
     /// Saves audio device preferences.
     /// </summary>
-    public static void Save(string? audioBackend = null, string? captureDevice = null, string? playbackDevice = null, bool voiceActivated = false, int micCutoffDelayMs = 200, bool noiseSuppression = false, int noiseGateOpen = 15, int noiseGateClose = 8, int noiseGateHoldMs = 240)
+    public static void Save(string? audioBackend = null, string? captureDevice = null, string? playbackDevice = null, bool voiceActivated = false, int micCutoffDelayMs = 200, bool noiseSuppression = false, int noiseGateOpen = 15, int noiseGateClose = 8, int noiseGateHoldMs = 240, string? pttKeyOrButton = null)
     {
         try
         {
@@ -87,7 +92,8 @@ public static class AudioSettings
                 ["noiseSuppression"] = noiseSuppression,
                 ["noiseGateOpen"] = Math.Clamp(noiseGateOpen, 5, 50),
                 ["noiseGateClose"] = Math.Clamp(noiseGateClose, 2, 25),
-                ["noiseGateHoldMs"] = Math.Clamp(noiseGateHoldMs, 0, 500)
+                ["noiseGateHoldMs"] = Math.Clamp(noiseGateHoldMs, 0, 500),
+                ["pttKeyOrButton"] = string.IsNullOrEmpty(pttKeyOrButton) ? DefaultPttKeyOrButton : pttKeyOrButton
             };
             var json = JsonSerializer.Serialize(obj, JsonOptions);
             File.WriteAllText(GetSettingsPath(), json);

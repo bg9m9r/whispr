@@ -35,6 +35,9 @@ public static class DbInitializer
         // Apply pending migrations; creates DB and schema on first run
         ctx.Database.Migrate();
 
+        // Idempotent: add UpdatedAt/UpdatedAtTicks if Messages exists without them (e.g. baselined old DB or partial run)
+        EnsureMessageUpdatedAtColumns(ctx);
+
         SeedPermissionsAndRoles(ctx);
         SeedDefaultChannel(ctx);
         MigrateFromJsonIfNeeded(ctx, path);
@@ -75,10 +78,37 @@ public static class DbInitializer
                 "INSERT OR IGNORE INTO __EFMigrationsHistory (MigrationId, ProductVersion) VALUES ({0}, {1})",
                 InitialMigrationId,
                 "9.0.0");
+
+            // Ensure Messages has columns that the migration would have added (old EnsureCreated didn't have these)
+            EnsureMessageUpdatedAtColumns(ctx);
         }
         catch
         {
             // If anything fails, Migrate() will run and may fail on duplicate table; that's acceptable
+        }
+    }
+
+    /// <summary>
+    /// Adds UpdatedAt/UpdatedAtTicks to Messages when baselining an old DB that didn't have them.
+    /// </summary>
+    private static void EnsureMessageUpdatedAtColumns(WhisprDbContext ctx)
+    {
+        try
+        {
+            ctx.Database.ExecuteSqlRaw("ALTER TABLE Messages ADD COLUMN UpdatedAt TEXT NULL");
+        }
+        catch
+        {
+            // Column may already exist
+        }
+
+        try
+        {
+            ctx.Database.ExecuteSqlRaw("ALTER TABLE Messages ADD COLUMN UpdatedAtTicks INTEGER NULL");
+        }
+        catch
+        {
+            // Column may already exist
         }
     }
 

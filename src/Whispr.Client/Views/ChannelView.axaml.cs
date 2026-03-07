@@ -1,4 +1,5 @@
 using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Diagnostics;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -17,6 +18,7 @@ public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
     private readonly MainWindow _window;
     private readonly ChannelService _channelService;
     private readonly ChannelViewModel _viewModel;
+    private bool _pttMouseCaptureActive;
 
     public ChannelView(MainWindow window, ConnectionService connection, AuthService auth,
         ChannelJoinedResult channelResult, ServerStatePayload serverState, string serverHost)
@@ -27,6 +29,7 @@ public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
         _channelService.Start(channelResult, serverState);
         _viewModel = new ChannelViewModel(_channelService, auth, this, channelResult, serverState, serverHost);
         _viewModel.TreeRefreshed += ExpandAllNodesWhenReady;
+        _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         DataContext = _viewModel;
         InitializeComponent();
 
@@ -38,6 +41,106 @@ public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
         MessageInputBox.AddHandler(InputElement.KeyDownEvent, OnMessageInputKeyDownTunnel, RoutingStrategies.Tunnel);
         MessageScroll.ScrollChanged += OnMessageScrollChanged;
         _viewModel.MessageDisplayItems.CollectionChanged += OnMessageDisplayItemsChanged;
+        AttachedToVisualTree += OnAttachedToVisualTree;
+    }
+
+    private void OnAttachedToVisualTree(object? sender, EventArgs e)
+    {
+        if (_viewModel.IsTalkButtonVisible)
+            AttachPttKeyHandlers();
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(ChannelViewModel.IsTalkButtonVisible)) return;
+        if (_viewModel.IsTalkButtonVisible)
+            AttachPttKeyHandlers();
+        else
+            RemovePttKeyHandlers();
+    }
+
+    private void AttachPttKeyHandlers()
+    {
+        RemovePttKeyHandlers();
+        _window.AddHandler(InputElement.KeyDownEvent, OnPttKeyDown, handledEventsToo: true);
+        _window.AddHandler(InputElement.KeyUpEvent, OnPttKeyUp, handledEventsToo: true);
+        _window.AddHandler(InputElement.PointerPressedEvent, OnPttPointerPressed, handledEventsToo: true);
+        _window.AddHandler(InputElement.PointerReleasedEvent, OnPttPointerReleased, handledEventsToo: true);
+        _window.AddHandler(InputElement.PointerCaptureLostEvent, OnPttPointerCaptureLost, handledEventsToo: true);
+    }
+
+    private void RemovePttKeyHandlers()
+    {
+        _window.RemoveHandler(InputElement.KeyDownEvent, OnPttKeyDown);
+        _window.RemoveHandler(InputElement.KeyUpEvent, OnPttKeyUp);
+        _window.RemoveHandler(InputElement.PointerPressedEvent, OnPttPointerPressed);
+        _window.RemoveHandler(InputElement.PointerReleasedEvent, OnPttPointerReleased);
+        _window.RemoveHandler(InputElement.PointerCaptureLostEvent, OnPttPointerCaptureLost);
+    }
+
+    private static (Key? Key, string? MouseButton) ParsePttKeyOrButton(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return (null, null);
+        if (value.StartsWith("Key:", StringComparison.OrdinalIgnoreCase))
+        {
+            var keyPart = value.Length > 4 ? value[4..] : "";
+            return (Enum.TryParse<Key>(keyPart, ignoreCase: true, out var k) ? k : null, null);
+        }
+        if (value.StartsWith("Mouse:", StringComparison.OrdinalIgnoreCase))
+        {
+            var btn = value.Length > 6 ? value[6..] : "";
+            return (null, btn.Length > 0 ? btn : null);
+        }
+        return (null, null);
+    }
+
+    private void OnPttKeyDown(object? sender, KeyEventArgs e)
+    {
+        var (pttKey, _) = ParsePttKeyOrButton(_viewModel.PttKeyOrButton);
+        if (pttKey is null || e.Key != pttKey) return;
+        _viewModel.SetTransmitting(true);
+        e.Handled = true;
+    }
+
+    private void OnPttKeyUp(object? sender, KeyEventArgs e)
+    {
+        var (pttKey, _) = ParsePttKeyOrButton(_viewModel.PttKeyOrButton);
+        if (pttKey is null || e.Key != pttKey) return;
+        _viewModel.SetTransmitting(false);
+        e.Handled = true;
+    }
+
+    private void OnPttPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        var (_, pttMouse) = ParsePttKeyOrButton(_viewModel.PttKeyOrButton);
+        if (string.IsNullOrEmpty(pttMouse)) return;
+        var props = e.GetCurrentPoint(this).Properties;
+        bool match = pttMouse.Equals("Left", StringComparison.OrdinalIgnoreCase) && props.IsLeftButtonPressed
+            || pttMouse.Equals("Right", StringComparison.OrdinalIgnoreCase) && props.IsRightButtonPressed
+            || pttMouse.Equals("Middle", StringComparison.OrdinalIgnoreCase) && props.IsMiddleButtonPressed
+            || pttMouse.Equals("XButton1", StringComparison.OrdinalIgnoreCase) && props.IsXButton1Pressed
+            || pttMouse.Equals("XButton2", StringComparison.OrdinalIgnoreCase) && props.IsXButton2Pressed;
+        if (!match) return;
+        _pttMouseCaptureActive = true;
+        e.Pointer.Capture(_window);
+        _viewModel.SetTransmitting(true);
+        e.Handled = true;
+    }
+
+    private void OnPttPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (!_pttMouseCaptureActive) return;
+        _pttMouseCaptureActive = false;
+        e.Pointer.Capture(null);
+        _viewModel.SetTransmitting(false);
+        e.Handled = true;
+    }
+
+    private void OnPttPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        if (!_pttMouseCaptureActive) return;
+        _pttMouseCaptureActive = false;
+        _viewModel.SetTransmitting(false);
     }
 
     private void OnMessageDisplayItemsChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -259,6 +362,9 @@ public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
 
     public void Dispose()
     {
+        AttachedToVisualTree -= OnAttachedToVisualTree;
+        _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        RemovePttKeyHandlers();
         MessageScroll.ScrollChanged -= OnMessageScrollChanged;
         _viewModel.MessageDisplayItems.CollectionChanged -= OnMessageDisplayItemsChanged;
         _viewModel.TreeRefreshed -= ExpandAllNodesWhenReady;

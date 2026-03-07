@@ -58,6 +58,10 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _isTalkButtonVisible = true;
 
+    /// <summary>Stored PTT binding, e.g. "Key:V" or "Mouse:Middle". Used when IsTalkButtonVisible (PTT mode).</summary>
+    [ObservableProperty]
+    private string _pttKeyOrButton = "Key:V";
+
     [ObservableProperty]
     private bool _isDisconnectEnabled = true;
 
@@ -539,9 +543,11 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
                 IsMicStatusVisible = true;
             };
 
-            var (audioBackend, captureDevice, playbackDevice, voiceActivated, micCutoffDelayMs, noiseSuppression, noiseGateOpen, noiseGateClose, noiseGateHoldMs) = AudioSettings.Load();
+            var (audioBackend, captureDevice, playbackDevice, voiceActivated, micCutoffDelayMs, noiseSuppression, noiseGateOpen, noiseGateClose, noiseGateHoldMs, pttKeyOrButton) = AudioSettings.Load();
             var pushToTalk = !voiceActivated;
             ClientLog.Info($"Starting audio (clientId={clientId}, pushToTalk={pushToTalk}, voiceActivated={voiceActivated}, cutoffDelay={micCutoffDelayMs}ms)");
+
+            PttKeyOrButton = pttKeyOrButton ?? "Key:V";
 
             var resolvedCapture = ResolveCaptureDevice(audioBackend, captureDevice);
             var resolvedPlayback = ResolvePlaybackDevice(audioBackend, playbackDevice);

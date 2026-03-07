@@ -24,6 +24,8 @@ sudo apt install libx11-6 libice6 libsm6 libfontconfig1 libgdiplus libopenal1 li
 sudo pacman -S libx11 libice libsm fontconfig openal libsecret
 # Fedora
 sudo dnf install libX11 libICE libSM fontconfig libgdiplus openal-soft libsecret
+# Bazzite (rpm-ostree; reboot after install)
+rpm-ostree install libX11 libICE libSM fontconfig libgdiplus openal-soft libsecret rnnoise
 ```
 
 **Windows:** Windows 11, 10, or 8.1. No extra installs.
