@@ -22,13 +22,13 @@ public static class AudioSettings
     /// Loads saved audio settings. Returns defaults if file doesn't exist.
     /// audioBackend: null = system default, "pulse" = PulseAudio, "alsa" = ALSA (Linux only).
     /// </summary>
-    public static (string? AudioBackend, string? CaptureDevice, string? PlaybackDevice, bool VoiceActivated, int MicCutoffDelayMs, bool NoiseSuppression, int NoiseGateOpen, int NoiseGateClose, int NoiseGateHoldMs, string? PttKeyOrButton) Load()
+    public static (string? AudioBackend, string? CaptureDevice, string? PlaybackDevice, string TransmitMode, int MicCutoffDelayMs, bool NoiseSuppression, int NoiseGateOpen, int NoiseGateClose, int NoiseGateHoldMs, string? PttKeyOrButton) Load()
     {
         try
         {
             var path = GetSettingsPath();
             if (!File.Exists(path))
-                return (null, null, null, false, 200, false, 15, 8, 240, DefaultPttKeyOrButton);
+                return (null, null, null, "ptt", 200, false, 15, 8, 240, DefaultPttKeyOrButton);
 
             var json = File.ReadAllText(path);
             var doc = JsonDocument.Parse(json);
@@ -50,6 +50,11 @@ public static class AudioSettings
                 if (playback == "pulse" || playback == "alsa") playback = null;
             }
             var voiceActivated = root.TryGetProperty("voiceActivated", out var v) && v.ValueKind == JsonValueKind.True;
+            var transmitMode = root.TryGetProperty("transmitMode", out var tm) && tm.ValueKind == JsonValueKind.String
+                ? tm.GetString()
+                : (voiceActivated ? "voice" : "ptt");
+            if (string.IsNullOrEmpty(transmitMode) || (transmitMode != "voice" && transmitMode != "ptt" && transmitMode != "open"))
+                transmitMode = voiceActivated ? "voice" : "ptt";
             var micCutoffDelayMs = root.TryGetProperty("micCutoffDelayMs", out var d) && d.TryGetInt32(out var delay)
                 ? Math.Clamp(delay, 0, 1000)
                 : 200;
@@ -67,27 +72,29 @@ public static class AudioSettings
                 ? ptt.GetString()
                 : DefaultPttKeyOrButton;
 
-            return (string.IsNullOrEmpty(audioBackend) ? null : audioBackend, string.IsNullOrEmpty(capture) ? null : capture, string.IsNullOrEmpty(playback) ? null : playback, voiceActivated, micCutoffDelayMs, noiseSuppression, noiseGateOpen, noiseGateClose, noiseGateHoldMs, string.IsNullOrEmpty(pttKeyOrButton) ? DefaultPttKeyOrButton : pttKeyOrButton);
+            return (string.IsNullOrEmpty(audioBackend) ? null : audioBackend, string.IsNullOrEmpty(capture) ? null : capture, string.IsNullOrEmpty(playback) ? null : playback, transmitMode, micCutoffDelayMs, noiseSuppression, noiseGateOpen, noiseGateClose, noiseGateHoldMs, string.IsNullOrEmpty(pttKeyOrButton) ? DefaultPttKeyOrButton : pttKeyOrButton);
         }
         catch
         {
-            return (null, null, null, false, 200, false, 15, 8, 240, DefaultPttKeyOrButton);
+            return (null, null, null, "ptt", 200, false, 15, 8, 240, DefaultPttKeyOrButton);
         }
     }
 
     /// <summary>
     /// Saves audio device preferences.
     /// </summary>
-    public static void Save(string? audioBackend = null, string? captureDevice = null, string? playbackDevice = null, bool voiceActivated = false, int micCutoffDelayMs = 200, bool noiseSuppression = false, int noiseGateOpen = 15, int noiseGateClose = 8, int noiseGateHoldMs = 240, string? pttKeyOrButton = null)
+    public static void Save(string? audioBackend = null, string? captureDevice = null, string? playbackDevice = null, string? transmitMode = null, int micCutoffDelayMs = 200, bool noiseSuppression = false, int noiseGateOpen = 15, int noiseGateClose = 8, int noiseGateHoldMs = 240, string? pttKeyOrButton = null)
     {
         try
         {
+            var mode = transmitMode is "voice" or "ptt" or "open" ? transmitMode : "ptt";
             var obj = new Dictionary<string, object?>
             {
                 ["audioBackend"] = string.IsNullOrEmpty(audioBackend) ? null : audioBackend,
                 ["captureDevice"] = string.IsNullOrEmpty(captureDevice) ? null : captureDevice,
                 ["playbackDevice"] = string.IsNullOrEmpty(playbackDevice) ? null : playbackDevice,
-                ["voiceActivated"] = voiceActivated,
+                ["transmitMode"] = mode,
+                ["voiceActivated"] = mode == "voice",
                 ["micCutoffDelayMs"] = Math.Clamp(micCutoffDelayMs, 0, 1000),
                 ["noiseSuppression"] = noiseSuppression,
                 ["noiseGateOpen"] = Math.Clamp(noiseGateOpen, 5, 50),

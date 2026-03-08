@@ -18,8 +18,29 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     private System.Threading.Timer? _hideSavedTimer;
     private bool _updatingThreshold;
 
+    /// <summary>Transmit mode: "voice" | "ptt" | "open".</summary>
     [ObservableProperty]
-    private bool _voiceActivated;
+    [NotifyPropertyChangedFor(nameof(IsVoiceActivationMode))]
+    [NotifyPropertyChangedFor(nameof(IsPushToTalkMode))]
+    [NotifyPropertyChangedFor(nameof(IsOpenTransmitMode))]
+    [NotifyPropertyChangedFor(nameof(IsVoiceActivationSectionEnabled))]
+    [NotifyPropertyChangedFor(nameof(IsPushToTalkSectionEnabled))]
+    private string _transmitMode = "ptt";
+
+    /// <summary>True when Voice activation is selected.</summary>
+    public bool IsVoiceActivationMode { get => TransmitMode == "voice"; set { if (value) TransmitMode = "voice"; } }
+
+    /// <summary>True when Push-to-talk is selected.</summary>
+    public bool IsPushToTalkMode { get => TransmitMode == "ptt"; set { if (value) TransmitMode = "ptt"; } }
+
+    /// <summary>True when Open transmit is selected.</summary>
+    public bool IsOpenTransmitMode { get => TransmitMode == "open"; set { if (value) TransmitMode = "open"; } }
+
+    /// <summary>True when voice activation settings (noise gate, etc.) should be enabled.</summary>
+    public bool IsVoiceActivationSectionEnabled => TransmitMode == "voice";
+
+    /// <summary>True when push-to-talk settings (key, cutoff) should be enabled.</summary>
+    public bool IsPushToTalkSectionEnabled => TransmitMode == "ptt";
 
     [ObservableProperty]
     private bool _noiseSuppression;
@@ -94,8 +115,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _audioSettings = audioSettings;
         _deviceProvider = deviceProvider;
 
-        var (_, capture, playback, voiceActivated, micCutoffDelayMs, noiseSuppression, noiseGateOpen, noiseGateClose, noiseGateHoldMs, pttKeyOrButton) = _audioSettings.Load();
-        VoiceActivated = voiceActivated;
+        var (_, capture, playback, transmitMode, micCutoffDelayMs, noiseSuppression, noiseGateOpen, noiseGateClose, noiseGateHoldMs, pttKeyOrButton) = _audioSettings.Load();
+        TransmitMode = transmitMode is "voice" or "ptt" or "open" ? transmitMode : "ptt";
         NoiseSuppression = noiseSuppression;
         CutoffDelayMs = micCutoffDelayMs;
         NoiseGateOpen = noiseGateOpen;
@@ -210,7 +231,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
             null,
             ResolveDevice(SelectedInputDevice, DefaultLabel),
             ResolveDevice(SelectedOutputDevice, DefaultLabel),
-            VoiceActivated,
+            TransmitMode,
             CutoffDelayMs,
             NoiseSuppression,
             NoiseGateOpen,

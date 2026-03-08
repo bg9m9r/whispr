@@ -245,12 +245,13 @@ public sealed class MicTestService : IDisposable
                 byte[] pcm;
                 if (shouldPlay)
                 {
-                    pcm = EncodeDecode(buffer);
-                    if (pcm is not null)
+                    var encoded = EncodeDecode(buffer);
+                    if (encoded is not null)
                     {
                         if (!_wasPlaying)
-                            ApplyFadeIn(pcm);
+                            ApplyFadeIn(encoded);
                         _wasPlaying = true;
+                        pcm = encoded;
                     }
                     else
                     {

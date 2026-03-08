@@ -543,9 +543,10 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
                 IsMicStatusVisible = true;
             };
 
-            var (audioBackend, captureDevice, playbackDevice, voiceActivated, micCutoffDelayMs, noiseSuppression, noiseGateOpen, noiseGateClose, noiseGateHoldMs, pttKeyOrButton) = AudioSettings.Load();
-            var pushToTalk = !voiceActivated;
-            ClientLog.Info($"Starting audio (clientId={clientId}, pushToTalk={pushToTalk}, voiceActivated={voiceActivated}, cutoffDelay={micCutoffDelayMs}ms)");
+            var (audioBackend, captureDevice, playbackDevice, transmitMode, micCutoffDelayMs, noiseSuppression, noiseGateOpen, noiseGateClose, noiseGateHoldMs, pttKeyOrButton) = AudioSettings.Load();
+            var pushToTalk = transmitMode == "ptt";
+            var voiceActivated = transmitMode == "voice";
+            ClientLog.Info($"Starting audio (clientId={clientId}, transmitMode={transmitMode}, cutoffDelay={micCutoffDelayMs}ms)");
 
             PttKeyOrButton = pttKeyOrButton ?? "Key:V";
 
@@ -556,7 +557,7 @@ public sealed partial class ChannelViewModel : ObservableObject, IDisposable
                 captureDeviceName: resolvedCapture, playbackDeviceName: resolvedPlayback, pushToTalk: pushToTalk, voiceActivated: voiceActivated, micCutoffDelayMs: micCutoffDelayMs,
                 noiseSuppression: noiseSuppression, noiseGateOpen: noiseGateOpen, noiseGateClose: noiseGateClose, noiseGateHoldMs: noiseGateHoldMs);
 
-            IsTalkButtonVisible = !voiceActivated;
+            IsTalkButtonVisible = transmitMode == "ptt";
             _audioService.SetMuteSend(IsMuted);
             _audioService.SetMuteReceive(IsReceiveMuted);
 

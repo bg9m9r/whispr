@@ -11,39 +11,48 @@ namespace Whispr.Client.Views;
 
 public partial class SettingsView : UserControl, ISettingsViewHost
 {
-    private readonly MainWindow _window;
-    private readonly SettingsViewModel _viewModel;
+    private readonly MainWindow? _window;
+    private readonly SettingsViewModel? _viewModel;
 
-    public SettingsView(MainWindow window)
+    public SettingsView()
+    {
+        InitializeComponent();
+    }
+
+    public SettingsView(MainWindow window) : this()
     {
         _window = window;
         _viewModel = new SettingsViewModel(this, new DefaultAudioSettings(), new DefaultAudioDeviceProvider());
         DataContext = _viewModel;
-        InitializeComponent();
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         Unloaded += (_, _) =>
         {
-            _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            if (_viewModel is not null)
+            {
+                _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+                _viewModel.Dispose();
+            }
             RemovePttKeyListenHandlers();
-            _viewModel.Dispose();
         };
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName != nameof(SettingsViewModel.IsListeningForPttKey)) return;
-        if (_viewModel.IsListeningForPttKey)
+        if (_viewModel?.IsListeningForPttKey == true)
             AttachPttKeyListenHandlers();
     }
 
     private void AttachPttKeyListenHandlers()
     {
-        _window.AddHandler(InputElement.KeyDownEvent, OnPttKeyListenKeyDown, handledEventsToo: true);
-        _window.AddHandler(InputElement.PointerPressedEvent, OnPttKeyListenPointerPressed, handledEventsToo: true);
+        var w = _window ?? throw new InvalidOperationException("SettingsView not initialized");
+        w.AddHandler(InputElement.KeyDownEvent, OnPttKeyListenKeyDown, handledEventsToo: true);
+        w.AddHandler(InputElement.PointerPressedEvent, OnPttKeyListenPointerPressed, handledEventsToo: true);
     }
 
     private void RemovePttKeyListenHandlers()
     {
+        if (_window is null) return;
         _window.RemoveHandler(InputElement.KeyDownEvent, OnPttKeyListenKeyDown);
         _window.RemoveHandler(InputElement.PointerPressedEvent, OnPttKeyListenPointerPressed);
     }
@@ -53,7 +62,7 @@ public partial class SettingsView : UserControl, ISettingsViewHost
         var key = e.Key;
         if (key == Avalonia.Input.Key.None) return;
         var s = "Key:" + key;
-        _viewModel.SetPttBinding(s);
+        _viewModel?.SetPttBinding(s);
         RemovePttKeyListenHandlers();
         e.Handled = true;
     }
@@ -75,15 +84,15 @@ public partial class SettingsView : UserControl, ISettingsViewHost
                 return;
             hit = hit.GetVisualParent();
         }
-        _viewModel.SetPttBinding(button);
+        _viewModel?.SetPttBinding(button);
         RemovePttKeyListenHandlers();
         e.Handled = true;
     }
 
-    void ISettingsViewHost.MuteRoomAudioForMicTest() => _window.MuteRoomAudioForMicTest();
-    void ISettingsViewHost.UnmuteRoomAudioForMicTest() => _window.UnmuteRoomAudioForMicTest();
-    void ISettingsViewHost.RefreshLayout() => _window.RefreshLayout();
-    void ISettingsViewHost.ShowSettingsBack() => _window.ShowSettingsBack();
+    void ISettingsViewHost.MuteRoomAudioForMicTest() => (_window ?? throw new InvalidOperationException("SettingsView not initialized")).MuteRoomAudioForMicTest();
+    void ISettingsViewHost.UnmuteRoomAudioForMicTest() => (_window ?? throw new InvalidOperationException("SettingsView not initialized")).UnmuteRoomAudioForMicTest();
+    void ISettingsViewHost.RefreshLayout() => (_window ?? throw new InvalidOperationException("SettingsView not initialized")).RefreshLayout();
+    void ISettingsViewHost.ShowSettingsBack() => (_window ?? throw new InvalidOperationException("SettingsView not initialized")).ShowSettingsBack();
 
     private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
     {

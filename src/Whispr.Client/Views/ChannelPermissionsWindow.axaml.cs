@@ -8,10 +8,15 @@ namespace Whispr.Client.Views;
 
 public partial class ChannelPermissionsWindow : Window
 {
+    public ChannelPermissionsWindow()
+    {
+        InitializeComponent();
+    }
+
     public ChannelPermissionsWindow(Window? owner, Guid channelId, string channelName, ChannelService channelService)
+        : this()
     {
         DataContext = new ChannelPermissionsViewModel(channelService, channelId, channelName);
-        InitializeComponent();
         if (owner is not null)
             Owner = owner;
         AddHandler(KeyDownEvent, OnKeyDown, handledEventsToo: true);

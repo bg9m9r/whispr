@@ -216,6 +216,20 @@ docker compose -f docker-compose.yml restart whispr
 RENEW_EOF
 chmod +x "$RENEW_SCRIPT"
 
+# --- Update script (pull new image and restart) ---
+UPDATE_SCRIPT="$WHISPR_DIR/update.sh"
+cat > "$UPDATE_SCRIPT" << 'UPDATE_EOF'
+#!/usr/bin/env bash
+set -e
+cd "$(dirname "$0")"
+echo "Pulling latest Whispr image..."
+docker compose -f docker-compose.yml --env-file .env pull
+echo "Restarting Whispr..."
+docker compose -f docker-compose.yml --env-file .env up -d
+echo "Whispr updated."
+UPDATE_EOF
+chmod +x "$UPDATE_SCRIPT"
+
 if command -v crontab &>/dev/null; then
   echo ""
   read -rp "Add cron job for certificate renewal (daily)? [Y/n] " do_cron
@@ -246,4 +260,5 @@ echo "Useful commands:"
 echo "  docker compose -f $COMPOSE_FILE logs -f    # View logs"
 echo "  docker exec -it whispr ./Whispr.Server add-user USER PASS --admin  # Add user"
 echo "  $RENEW_SCRIPT    # Renew certificates manually"
+echo "  $UPDATE_SCRIPT   # Update to latest image and restart"
 echo ""

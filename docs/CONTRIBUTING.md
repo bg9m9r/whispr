@@ -12,6 +12,8 @@
    ```
    Run the test projects in `src/` as needed.
 
+   **Update from git:** After pulling changes, use `./scripts/update-client.sh` to rebuild the client, or `./scripts/update-server.sh --push` to build and push a new server image. See [Server setup → Updating](SERVER_SETUP.md#updating).
+
 4. **Changes:** Use a branch, keep commits focused, and open a **pull request** against `main` with a short description of the change.
 
 5. **Issues:** Bug reports and feature ideas are welcome as [GitHub Issues](/issues).

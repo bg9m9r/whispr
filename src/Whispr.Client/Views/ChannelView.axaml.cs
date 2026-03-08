@@ -15,10 +15,20 @@ namespace Whispr.Client.Views;
 
 public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
 {
-    private readonly MainWindow _window;
-    private readonly ChannelService _channelService;
-    private readonly ChannelViewModel _viewModel;
+    private readonly MainWindow? _window;
+    private readonly ChannelService? _channelService;
+    private readonly ChannelViewModel? _viewModel;
     private bool _pttMouseCaptureActive;
+
+    /// <summary>Throws if view was constructed via parameterless ctor (design-time only).</summary>
+    private ChannelViewModel ViewModel => _viewModel ?? throw new InvalidOperationException("ChannelView not initialized");
+    private MainWindow Window => _window ?? throw new InvalidOperationException("ChannelView not initialized");
+    private ChannelService ChannelSvc => _channelService ?? throw new InvalidOperationException("ChannelView not initialized");
+
+    public ChannelView()
+    {
+        InitializeComponent();
+    }
 
     public ChannelView(MainWindow window, ConnectionService connection, AuthService auth,
         ChannelJoinedResult channelResult, ServerStatePayload serverState, string serverHost)
@@ -28,8 +38,8 @@ public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
         _channelService = new ChannelService(connection, auth, myUserId, a => Avalonia.Threading.Dispatcher.UIThread.Post(a));
         _channelService.Start(channelResult, serverState);
         _viewModel = new ChannelViewModel(_channelService, auth, this, channelResult, serverState, serverHost);
-        _viewModel.TreeRefreshed += ExpandAllNodesWhenReady;
-        _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        ViewModel.TreeRefreshed += ExpandAllNodesWhenReady;
+        ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         DataContext = _viewModel;
         InitializeComponent();
 
@@ -40,20 +50,20 @@ public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
         // Tunnel runs before the TextBox processes the key; we handle Space when empty so the TextBox never inserts a tab-like character.
         MessageInputBox.AddHandler(InputElement.KeyDownEvent, OnMessageInputKeyDownTunnel, RoutingStrategies.Tunnel);
         MessageScroll.ScrollChanged += OnMessageScrollChanged;
-        _viewModel.MessageDisplayItems.CollectionChanged += OnMessageDisplayItemsChanged;
+        ViewModel.MessageDisplayItems.CollectionChanged += OnMessageDisplayItemsChanged;
         AttachedToVisualTree += OnAttachedToVisualTree;
     }
 
     private void OnAttachedToVisualTree(object? sender, EventArgs e)
     {
-        if (_viewModel.IsTalkButtonVisible)
+        if (_viewModel?.IsTalkButtonVisible == true)
             AttachPttKeyHandlers();
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName != nameof(ChannelViewModel.IsTalkButtonVisible)) return;
-        if (_viewModel.IsTalkButtonVisible)
+        if (_viewModel?.IsTalkButtonVisible == true)
             AttachPttKeyHandlers();
         else
             RemovePttKeyHandlers();
@@ -62,20 +72,22 @@ public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
     private void AttachPttKeyHandlers()
     {
         RemovePttKeyHandlers();
-        _window.AddHandler(InputElement.KeyDownEvent, OnPttKeyDown, handledEventsToo: true);
-        _window.AddHandler(InputElement.KeyUpEvent, OnPttKeyUp, handledEventsToo: true);
-        _window.AddHandler(InputElement.PointerPressedEvent, OnPttPointerPressed, handledEventsToo: true);
-        _window.AddHandler(InputElement.PointerReleasedEvent, OnPttPointerReleased, handledEventsToo: true);
-        _window.AddHandler(InputElement.PointerCaptureLostEvent, OnPttPointerCaptureLost, handledEventsToo: true);
+        if (_window is null) return;
+        Window.AddHandler(InputElement.KeyDownEvent, OnPttKeyDown, handledEventsToo: true);
+        Window.AddHandler(InputElement.KeyUpEvent, OnPttKeyUp, handledEventsToo: true);
+        Window.AddHandler(InputElement.PointerPressedEvent, OnPttPointerPressed, handledEventsToo: true);
+        Window.AddHandler(InputElement.PointerReleasedEvent, OnPttPointerReleased, handledEventsToo: true);
+        Window.AddHandler(InputElement.PointerCaptureLostEvent, OnPttPointerCaptureLost, handledEventsToo: true);
     }
 
     private void RemovePttKeyHandlers()
     {
-        _window.RemoveHandler(InputElement.KeyDownEvent, OnPttKeyDown);
-        _window.RemoveHandler(InputElement.KeyUpEvent, OnPttKeyUp);
-        _window.RemoveHandler(InputElement.PointerPressedEvent, OnPttPointerPressed);
-        _window.RemoveHandler(InputElement.PointerReleasedEvent, OnPttPointerReleased);
-        _window.RemoveHandler(InputElement.PointerCaptureLostEvent, OnPttPointerCaptureLost);
+        if (_window is null) return;
+        Window.RemoveHandler(InputElement.KeyDownEvent, OnPttKeyDown);
+        Window.RemoveHandler(InputElement.KeyUpEvent, OnPttKeyUp);
+        Window.RemoveHandler(InputElement.PointerPressedEvent, OnPttPointerPressed);
+        Window.RemoveHandler(InputElement.PointerReleasedEvent, OnPttPointerReleased);
+        Window.RemoveHandler(InputElement.PointerCaptureLostEvent, OnPttPointerCaptureLost);
     }
 
     private static (Key? Key, string? MouseButton) ParsePttKeyOrButton(string? value)
@@ -96,23 +108,23 @@ public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
 
     private void OnPttKeyDown(object? sender, KeyEventArgs e)
     {
-        var (pttKey, _) = ParsePttKeyOrButton(_viewModel.PttKeyOrButton);
+        var (pttKey, _) = ParsePttKeyOrButton(ViewModel.PttKeyOrButton);
         if (pttKey is null || e.Key != pttKey) return;
-        _viewModel.SetTransmitting(true);
+        ViewModel.SetTransmitting(true);
         e.Handled = true;
     }
 
     private void OnPttKeyUp(object? sender, KeyEventArgs e)
     {
-        var (pttKey, _) = ParsePttKeyOrButton(_viewModel.PttKeyOrButton);
+        var (pttKey, _) = ParsePttKeyOrButton(ViewModel.PttKeyOrButton);
         if (pttKey is null || e.Key != pttKey) return;
-        _viewModel.SetTransmitting(false);
+        ViewModel.SetTransmitting(false);
         e.Handled = true;
     }
 
     private void OnPttPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        var (_, pttMouse) = ParsePttKeyOrButton(_viewModel.PttKeyOrButton);
+        var (_, pttMouse) = ParsePttKeyOrButton(ViewModel.PttKeyOrButton);
         if (string.IsNullOrEmpty(pttMouse)) return;
         var props = e.GetCurrentPoint(this).Properties;
         bool match = pttMouse.Equals("Left", StringComparison.OrdinalIgnoreCase) && props.IsLeftButtonPressed
@@ -123,7 +135,7 @@ public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
         if (!match) return;
         _pttMouseCaptureActive = true;
         e.Pointer.Capture(_window);
-        _viewModel.SetTransmitting(true);
+        ViewModel.SetTransmitting(true);
         e.Handled = true;
     }
 
@@ -132,7 +144,7 @@ public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
         if (!_pttMouseCaptureActive) return;
         _pttMouseCaptureActive = false;
         e.Pointer.Capture(null);
-        _viewModel.SetTransmitting(false);
+        ViewModel.SetTransmitting(false);
         e.Handled = true;
     }
 
@@ -140,7 +152,7 @@ public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
     {
         if (!_pttMouseCaptureActive) return;
         _pttMouseCaptureActive = false;
-        _viewModel.SetTransmitting(false);
+        ViewModel.SetTransmitting(false);
     }
 
     private void OnMessageDisplayItemsChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -151,47 +163,47 @@ public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
 
     private void ScrollMessageToBottomIfRequested()
     {
-        if (!_viewModel.RequestScrollToBottom) return;
-        _viewModel.RequestScrollToBottom = false;
+        if (!ViewModel.RequestScrollToBottom) return;
+        ViewModel.RequestScrollToBottom = false;
         MessageScroll.ScrollToEnd();
     }
 
-    public void RestartAudioWithNewSettings() => _viewModel.RestartAudio();
-    public void MuteAudioForMicTest() => _viewModel.MuteAudioForMicTest();
-    public void UnmuteAudioForMicTest() => _viewModel.UnmuteAudioForMicTest();
+    public void RestartAudioWithNewSettings() => ViewModel.RestartAudio();
+    public void MuteAudioForMicTest() => ViewModel.MuteAudioForMicTest();
+    public void UnmuteAudioForMicTest() => ViewModel.UnmuteAudioForMicTest();
 
-    void IChannelViewHost.ShowSettings() => _window.ShowSettings();
-    void IChannelViewHost.ShowLogin() => _window.ShowLogin();
+    void IChannelViewHost.ShowSettings() => Window.ShowSettings();
+    void IChannelViewHost.ShowLogin() => Window.ShowLogin();
 
     async Task IChannelViewHost.ShowPermissionsWindowAsync(Guid userId, string username)
     {
         var owner = this.FindAncestorOfType<Window>();
-        var dialog = new PermissionsWindow(owner, userId, username, _channelService);
+        var dialog = new PermissionsWindow(owner, userId, username, ChannelSvc);
         await dialog.ShowDialog(owner ?? throw new InvalidOperationException("No owner window"));
     }
 
     async Task IChannelViewHost.ShowChannelPermissionsWindowAsync(Guid channelId, string channelName)
     {
         var owner = this.FindAncestorOfType<Window>();
-        var dialog = new ChannelPermissionsWindow(owner, channelId, channelName, _channelService);
+        var dialog = new ChannelPermissionsWindow(owner, channelId, channelName, ChannelSvc);
         await dialog.ShowDialog(owner ?? throw new InvalidOperationException("No owner window"));
     }
 
-    void IChannelViewHost.RestartAudioWithNewSettings() => _viewModel.RestartAudio();
+    void IChannelViewHost.RestartAudioWithNewSettings() => ViewModel.RestartAudio();
 
     private void OnTalkButtonPressed(object? sender, PointerPressedEventArgs e)
     {
         e.Pointer.Capture(TalkButton);
-        _viewModel.SetTransmitting(true);
+        ViewModel.SetTransmitting(true);
     }
 
     private void OnTalkButtonReleased(object? sender, PointerReleasedEventArgs e)
     {
         e.Pointer.Capture(null);
-        _viewModel.SetTransmitting(false);
+        ViewModel.SetTransmitting(false);
     }
 
-    private void OnTalkButtonCaptureLost(object? sender, PointerCaptureLostEventArgs e) => _viewModel.SetTransmitting(false);
+    private void OnTalkButtonCaptureLost(object? sender, PointerCaptureLostEventArgs e) => ViewModel.SetTransmitting(false);
 
     private void OnResizeWest(object? sender, PointerPressedEventArgs e) =>
         this.FindAncestorOfType<Window>()?.BeginResizeDrag(WindowEdge.West, e);
@@ -207,7 +219,7 @@ public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
         var added = e.AddedItems?.Count > 0 ? e.AddedItems[0] : null;
         if (added is not ServerTreeNode node || node.Kind != NodeKind.Channel || !node.ChannelId.HasValue)
             return;
-        _ = _viewModel.SelectChannelAsync(node.ChannelId.Value, node.DisplayName, node.ChannelType ?? "voice");
+        _ = ViewModel.SelectChannelAsync(node.ChannelId.Value, node.DisplayName, node.ChannelType ?? "voice");
     }
 
     private void OnContextRequested(object? sender, ContextRequestedEventArgs e)
@@ -227,14 +239,14 @@ public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
         }
 
         // Show menu for any valid node; menu items control their own visibility
-        _viewModel.ContextMenuTargetNode = node;
+        ViewModel.ContextMenuTargetNode = node;
     }
 
     private void OnMessageContextRequested(object? sender, ContextRequestedEventArgs e)
     {
         if (sender is not Control control || control.DataContext is not MessageDisplayItem item)
             return;
-        _viewModel.ContextMessageItem = item;
+        ViewModel.ContextMessageItem = item;
     }
 
     private void OnCreateChannelContextClick(object? sender, RoutedEventArgs e)
@@ -244,7 +256,7 @@ public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
 
     private void OnCreateChannelFlyoutClick(object? sender, RoutedEventArgs e)
     {
-        _viewModel.CreateChannelCommand.Execute(null);
+        ViewModel.CreateChannelCommand.Execute(null);
         FlyoutBase.GetAttachedFlyout(ChannelTreeHost)?.Hide();
     }
 
@@ -255,11 +267,11 @@ public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
 
     private void OnMessageScrollChanged(object? sender, ScrollChangedEventArgs e)
     {
-        if (sender is not ScrollViewer scroll || !_viewModel.IsTextChannel || _viewModel.IsLoadingOlderMessages)
+        if (sender is not ScrollViewer scroll || !ViewModel.IsTextChannel || ViewModel.IsLoadingOlderMessages)
             return;
         // Load older messages when user scrolls near the top (within 80px)
         if (scroll.Offset.Y < 80)
-            _ = _viewModel.LoadOlderMessagesAsync();
+            _ = ViewModel.LoadOlderMessagesAsync();
     }
 
     private void OnMessageInputKeyDownTunnel(object? sender, KeyEventArgs e)
@@ -302,8 +314,8 @@ public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
         if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
             return;
         e.Handled = true;
-        if (_viewModel.SendMessageCommand.CanExecute(null))
-            _viewModel.SendMessageCommand.Execute(null);
+        if (ViewModel.SendMessageCommand.CanExecute(null))
+            ViewModel.SendMessageCommand.Execute(null);
     }
 
     public void OnEmojiPickerButtonClick(object? sender, RoutedEventArgs e)
@@ -345,12 +357,12 @@ public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            var root = _viewModel.RootNode;
+            var root = ViewModel.RootNode;
             if (root is null) return;
             var rootContainer = ChannelTree.TreeContainerFromItem(root);
             if (rootContainer is TreeViewItem rootItem)
                 ChannelTree.ExpandSubTree(rootItem);
-            var selectedId = _viewModel.SelectedChannelId;
+            var selectedId = ViewModel.SelectedChannelId;
             if (selectedId.HasValue && root?.Children is { } children)
             {
                 var channelNode = children.FirstOrDefault(n => n.ChannelId == selectedId.Value);
@@ -363,11 +375,12 @@ public partial class ChannelView : UserControl, IDisposable, IChannelViewHost
     public void Dispose()
     {
         AttachedToVisualTree -= OnAttachedToVisualTree;
-        _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        if (_viewModel is null) return;
+        ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         RemovePttKeyHandlers();
         MessageScroll.ScrollChanged -= OnMessageScrollChanged;
-        _viewModel.MessageDisplayItems.CollectionChanged -= OnMessageDisplayItemsChanged;
-        _viewModel.TreeRefreshed -= ExpandAllNodesWhenReady;
-        _viewModel.Dispose();
+        ViewModel.MessageDisplayItems.CollectionChanged -= OnMessageDisplayItemsChanged;
+        ViewModel.TreeRefreshed -= ExpandAllNodesWhenReady;
+        ViewModel.Dispose();
     }
 }

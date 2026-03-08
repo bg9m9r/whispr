@@ -79,6 +79,78 @@ Or in Docker/systemd, pass `-e WHISPR_MESSAGE_ENCRYPTION_KEY=...` or `Environmen
 
 ---
 
+## Updating
+
+### Server (Docker)
+
+If you used the [setup script](#quick-setup-ubuntu), an `update.sh` script was created in your install directory (e.g. `/opt/whispr`). To pull the latest image and restart:
+
+```bash
+cd /opt/whispr   # or your WHISPR_DIR
+./update.sh
+```
+
+Or manually:
+
+```bash
+docker compose -f docker-compose.yml --env-file .env pull
+docker compose -f docker-compose.yml --env-file .env up -d
+```
+
+**From the git repo** (build and push a new image, then update the server):
+
+```bash
+./scripts/update-server.sh --push
+# Then on the server: ./update.sh
+```
+
+### Client
+
+**From the git repo** (build the client for your platform):
+
+```bash
+./scripts/update-client.sh              # Current platform
+./scripts/update-client.sh linux-x64    # Specific platform
+./scripts/update-client.sh --all        # All platforms
+```
+
+Output goes to `dist/`. End users can download new releases from [GitHub Releases](/releases).
+
+---
+
+## Updating
+
+### Server (Docker)
+
+If you used the [setup script](#quick-setup-ubuntu), an `update.sh` script was created in your install directory (e.g. `/opt/whispr`). To pull the latest image and restart:
+
+```bash
+cd /opt/whispr   # or your WHISPR_DIR
+./update.sh
+```
+
+To build and push a new image from the git repo (for maintainers):
+
+```bash
+./scripts/update-server.sh --push
+```
+
+Then on your server, run `./update.sh` as above.
+
+### Client (from source)
+
+From a cloned repo, pull and build the client for your platform:
+
+```bash
+./scripts/update-client.sh              # Build for current platform
+./scripts/update-client.sh linux-x64     # Build for specific RID
+./scripts/update-client.sh --all         # Build for all platforms
+```
+
+Output goes to `dist/` (e.g. `dist/whispr-client-linux-x64.tar.gz`).
+
+---
+
 ## Version compatibility
 
 The server requires clients to be at least the same version as the server. On login, the server checks the client version; clients older than the server are rejected with a clear error (e.g. "Client version 0.9.0 is too old. Server requires 1.0.0 or newer. Please update your client."). Updated or newer clients can always connect.
@@ -102,6 +174,34 @@ Or from a cloned repo:
 ```
 
 The script prompts for domain, email, and Docker image, then sets up certificates, firewall (UFW), admin user, and a cron job for certificate renewal. Replace `OWNER/whispr` with your GitHub repo.
+
+### Updating
+
+**On the server** (Docker install via setup-server.sh): Run the update script created during setup:
+
+```bash
+/opt/whispr/update.sh
+```
+
+This pulls the latest image and restarts Whispr. If you installed to a different directory, run `./update.sh` from that directory.
+
+**From the git repo** (build and push a new image):
+
+```bash
+./scripts/update-server.sh --push
+```
+
+This pulls latest code, builds the Docker image, and pushes to ghcr.io. Then on your server, run `./update.sh` to pull and restart.
+
+**Client** (build from source):
+
+```bash
+./scripts/update-client.sh           # Build for current platform
+./scripts/update-client.sh --all     # Build for all platforms
+./scripts/update-client.sh linux-x64 # Build for specific platform
+```
+
+Output goes to `dist/`. End users can download releases from GitHub instead.
 
 ### Using a pre-built image
 

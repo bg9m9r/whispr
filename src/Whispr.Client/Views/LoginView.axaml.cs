@@ -11,24 +11,28 @@ namespace Whispr.Client.Views;
 
 public partial class LoginView : UserControl, ILoginViewHost
 {
-    private readonly MainWindow _window;
-    private readonly LoginViewModel _viewModel;
+    private readonly MainWindow? _window;
+    private readonly LoginViewModel? _viewModel;
 
-    public LoginView(MainWindow window)
+    public LoginView()
+    {
+        InitializeComponent();
+    }
+
+    public LoginView(MainWindow window) : this()
     {
         _window = window;
         _viewModel = new LoginViewModel(this, new LoginService(), new ServerSettingsStore(), new CredentialStore());
         DataContext = _viewModel;
-        InitializeComponent();
         AddHandler(KeyDownEvent, OnKeyDown, handledEventsToo: true);
     }
 
     void ILoginViewHost.ShowChannelView(ConnectionService connection, AuthService auth, ChannelJoinedResult channelJoined, ServerStatePayload serverState, string host)
     {
-        _window.ShowChannelView(connection, auth, channelJoined, serverState, host);
+        (_window ?? throw new InvalidOperationException("LoginView not initialized")).ShowChannelView(connection, auth, channelJoined, serverState, host);
     }
 
-    void ILoginViewHost.Close() => _window.Close();
+    void ILoginViewHost.Close() => (_window ?? throw new InvalidOperationException("LoginView not initialized")).Close();
 
     async Task<(bool confirmed, bool saveDecision)> ILoginViewHost.ShowUntrustedCertWarningAsync(string host, int port)
     {
@@ -70,14 +74,14 @@ public partial class LoginView : UserControl, ILoginViewHost
         if (w != null) w.BeginMoveDrag(e);
     }
 
-    private void OnCloseClick(object? sender, RoutedEventArgs e) => _window.Close();
+    private void OnCloseClick(object? sender, RoutedEventArgs e) => (_window ?? throw new InvalidOperationException("LoginView not initialized")).Close();
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter)
         {
             e.Handled = true;
-            _viewModel.ConnectCommand.Execute(null);
+            _viewModel?.ConnectCommand.Execute(null);
         }
     }
 }

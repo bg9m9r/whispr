@@ -14,7 +14,12 @@
         </Border>
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <StackPanel Margin="24" Spacing="16">
-        <TextBlock Text="Test microphone" FontWeight="SemiBold" Foreground="{DynamicResource WhisprTextSecondary}"/>
+        <!-- Microphone section -->
+        <TextBlock Text="Microphone" FontSize="14" FontWeight="SemiBold" Foreground="#ffffff" Margin="0,0,0,4"/>
+        <TextBlock Text="Input device:" FontWeight="SemiBold" Foreground="{DynamicResource WhisprTextSecondary}"/>
+        <ComboBox x:Name="InputDeviceCombo" MinWidth="300" ItemsSource="{Binding InputDevices}" SelectedItem="{Binding SelectedInputDevice, Mode=TwoWay}"/>
+
+        <TextBlock Text="Test microphone" FontWeight="SemiBold" Foreground="{DynamicResource WhisprTextSecondary}" Margin="0,16,0,0"/>
         <Border Background="{DynamicResource WhisprSurface}" CornerRadius="6" Padding="12">
             <StackPanel Spacing="8">
                 <StackPanel Orientation="Horizontal" Spacing="12">
@@ -23,62 +28,78 @@
                 </StackPanel>
                 <TextBlock Text="Level (speak to see bar move). Playback simulates what others hear: only when level meets the threshold. Room is muted while testing." FontSize="11" Foreground="{DynamicResource WhisprTextMuted}"/>
                 <ProgressBar x:Name="TestMicLevelBar" Minimum="0" Maximum="100" Value="{Binding TestMicLevel}" Height="12"/>
-                <Grid ColumnDefinitions="*,Auto" Margin="0,2,0,0">
-                    <Slider x:Name="TestThresholdSlider" Grid.Column="0" Minimum="5" Maximum="50" Value="{Binding TestThreshold, Mode=TwoWay}"/>
-                    <TextBlock x:Name="TestThresholdLabel" Grid.Column="1" Text="{Binding TestThresholdLabel}" Foreground="{DynamicResource WhisprTextMuted}" VerticalAlignment="Center" MinWidth="30" Margin="12,0,0,0"/>
-                </Grid>
-                <TextBlock Text="Threshold (align with your speaking level above). Adjust so it sits just below your voice. Use the open threshold setting below when satisfied." FontSize="11" Foreground="{DynamicResource WhisprTextMuted}"/>
+                <StackPanel IsVisible="{Binding IsVoiceActivationSectionEnabled}">
+                    <Grid ColumnDefinitions="*,Auto" Margin="0,2,0,0">
+                        <Slider x:Name="TestThresholdSlider" Grid.Column="0" Minimum="5" Maximum="50" Value="{Binding TestThreshold, Mode=TwoWay}"/>
+                        <TextBlock x:Name="TestThresholdLabel" Grid.Column="1" Text="{Binding TestThresholdLabel}" Foreground="{DynamicResource WhisprTextMuted}" VerticalAlignment="Center" MinWidth="30" Margin="12,0,0,0"/>
+                    </Grid>
+                    <TextBlock Text="Threshold (align with your speaking level above). Adjust so it sits just below your voice." FontSize="11" Foreground="{DynamicResource WhisprTextMuted}"/>
+                </StackPanel>
             </StackPanel>
         </Border>
 
-        <TextBlock Text="Input device (microphone):" FontWeight="SemiBold" Foreground="{DynamicResource WhisprTextSecondary}" Margin="0,16,0,0"/>
-        <ComboBox x:Name="InputDeviceCombo" MinWidth="300" ItemsSource="{Binding InputDevices}" SelectedItem="{Binding SelectedInputDevice, Mode=TwoWay}"/>
-        <TextBlock Text="Output device (speakers):" FontWeight="SemiBold" Foreground="{DynamicResource WhisprTextSecondary}" Margin="0,8,0,0"/>
+        <!-- Output section -->
+        <TextBlock Text="Output (speakers)" FontSize="14" FontWeight="SemiBold" Foreground="#ffffff" Margin="0,24,0,4"/>
+        <TextBlock Text="Output device:" FontWeight="SemiBold" Foreground="{DynamicResource WhisprTextSecondary}"/>
         <ComboBox x:Name="OutputDeviceCombo" MinWidth="300" ItemsSource="{Binding OutputDevices}" SelectedItem="{Binding SelectedOutputDevice, Mode=TwoWay}"/>
 
-        <TextBlock Text="Transmit mode" FontWeight="SemiBold" Foreground="{DynamicResource WhisprTextSecondary}" Margin="0,24,0,4"/>
-        <CheckBox x:Name="VoiceActivationCheck" Content="Voice activation (transmit when speaking, filter background noise)"
-                  IsChecked="{Binding VoiceActivated, Mode=TwoWay}"
-                  Foreground="{DynamicResource WhisprTextSecondary}"/>
-
-        <CheckBox x:Name="NoiseSuppressionCheck" Content="Noise suppression (RNNoise – filter background noise)"
-                  IsChecked="{Binding NoiseSuppression, Mode=TwoWay}"
-                  Foreground="{DynamicResource WhisprTextSecondary}" Margin="0,8,0,0"/>
-
-        <TextBlock Text="Push-to-talk key:" FontWeight="SemiBold" Foreground="{DynamicResource WhisprTextSecondary}" Margin="0,16,0,4"/>
-        <StackPanel Orientation="Horizontal" Spacing="12">
-            <TextBlock x:Name="PttKeyDisplay" Text="{Binding PttKeyOrButtonDisplay}" Foreground="{DynamicResource WhisprTextSecondary}" VerticalAlignment="Center"/>
-            <Button x:Name="SetPttKeyButton" Content="Set" Command="{Binding StartListeningForPttKeyCommand}"
-                    IsEnabled="{Binding IsListeningForPttKey, Converter={x:Static conv:InverseBoolConverter.Instance}}"/>
-            <TextBlock Text="Press any key or mouse button..." Foreground="{DynamicResource WhisprTextMuted}" FontSize="12" VerticalAlignment="Center"
-                       IsVisible="{Binding IsListeningForPttKey}"/>
+        <!-- Transmit mode -->
+        <TextBlock Text="Transmit mode" FontSize="14" FontWeight="SemiBold" Foreground="#ffffff" Margin="0,24,0,4"/>
+        <TextBlock Text="Choose how you transmit audio. Only one mode can be active." FontSize="11" Foreground="{DynamicResource WhisprTextMuted}" Margin="0,0,0,8"/>
+        <StackPanel Spacing="8">
+            <RadioButton Content="Voice activation — transmit when speaking (noise gate filters background)" GroupName="TransmitMode"
+                         IsChecked="{Binding IsVoiceActivationMode, Mode=TwoWay}" Foreground="{DynamicResource WhisprTextSecondary}"/>
+            <RadioButton Content="Push-to-talk — hold a key or button to transmit" GroupName="TransmitMode"
+                         IsChecked="{Binding IsPushToTalkMode, Mode=TwoWay}" Foreground="{DynamicResource WhisprTextSecondary}"/>
+            <RadioButton Content="Open transmit — always transmitting (use mute button to stop)" GroupName="TransmitMode"
+                         IsChecked="{Binding IsOpenTransmitMode, Mode=TwoWay}" Foreground="{DynamicResource WhisprTextSecondary}"/>
         </StackPanel>
 
-        <TextBlock Text="Noise gate (voice activation)" FontWeight="SemiBold" Foreground="{DynamicResource WhisprTextSecondary}" Margin="0,16,0,4"/>
-        <TextBlock Text="Open threshold (level above noise to start transmitting, dB scale):" FontSize="11" Foreground="{DynamicResource WhisprTextMuted}"/>
-        <StackPanel Orientation="Horizontal" Spacing="12">
-            <Slider x:Name="NoiseGateOpenSlider" Minimum="5" Maximum="50" Width="200" Value="{Binding NoiseGateOpen, Mode=TwoWay}"/>
-            <TextBlock x:Name="NoiseGateOpenLabel" Text="{Binding NoiseGateOpenLabel}" Foreground="{DynamicResource WhisprTextMuted}" VerticalAlignment="Center" MinWidth="30"/>
-        </StackPanel>
-        <TextBlock Text="Close threshold (level above noise to keep transmitting):" FontSize="11" Foreground="{DynamicResource WhisprTextMuted}"/>
-        <StackPanel Orientation="Horizontal" Spacing="12">
-            <Slider x:Name="NoiseGateCloseSlider" Minimum="2" Maximum="25" Width="200" Value="{Binding NoiseGateClose, Mode=TwoWay}"/>
-            <TextBlock x:Name="NoiseGateCloseLabel" Text="{Binding NoiseGateCloseLabel}" Foreground="{DynamicResource WhisprTextMuted}" VerticalAlignment="Center" MinWidth="30"/>
-        </StackPanel>
-        <TextBlock Text="Hold time (ms to keep transmitting after level drops):" FontSize="11" Foreground="{DynamicResource WhisprTextMuted}"/>
-        <StackPanel Orientation="Horizontal" Spacing="12">
-            <Slider x:Name="NoiseGateHoldSlider" Minimum="0" Maximum="500" Width="200" Value="{Binding NoiseGateHoldMs, Mode=TwoWay}"/>
-            <TextBlock x:Name="NoiseGateHoldLabel" Text="{Binding NoiseGateHoldLabel}" Foreground="{DynamicResource WhisprTextMuted}" VerticalAlignment="Center" MinWidth="50"/>
-        </StackPanel>
+        <!-- Voice activation settings (only when that mode is selected) -->
+        <Border IsVisible="{Binding IsVoiceActivationSectionEnabled}" Background="{DynamicResource WhisprSurface}" CornerRadius="6" Padding="12" Margin="0,8,0,0">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Voice activation settings" FontWeight="SemiBold" Foreground="{DynamicResource WhisprTextSecondary}"/>
+                <CheckBox x:Name="NoiseSuppressionCheck" Content="Noise suppression (RNNoise – filter background noise)"
+                          IsChecked="{Binding NoiseSuppression, Mode=TwoWay}"
+                          Foreground="{DynamicResource WhisprTextSecondary}"/>
+                <TextBlock Text="Open threshold (level above noise to start transmitting):" FontSize="11" Foreground="{DynamicResource WhisprTextMuted}"/>
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <Slider x:Name="NoiseGateOpenSlider" Minimum="5" Maximum="50" Width="200" Value="{Binding NoiseGateOpen, Mode=TwoWay}"/>
+                    <TextBlock x:Name="NoiseGateOpenLabel" Text="{Binding NoiseGateOpenLabel}" Foreground="{DynamicResource WhisprTextMuted}" VerticalAlignment="Center" MinWidth="30"/>
+                </StackPanel>
+                <TextBlock Text="Close threshold (level above noise to keep transmitting):" FontSize="11" Foreground="{DynamicResource WhisprTextMuted}"/>
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <Slider x:Name="NoiseGateCloseSlider" Minimum="2" Maximum="25" Width="200" Value="{Binding NoiseGateClose, Mode=TwoWay}"/>
+                    <TextBlock x:Name="NoiseGateCloseLabel" Text="{Binding NoiseGateCloseLabel}" Foreground="{DynamicResource WhisprTextMuted}" VerticalAlignment="Center" MinWidth="30"/>
+                </StackPanel>
+                <TextBlock Text="Hold time (ms to keep transmitting after level drops):" FontSize="11" Foreground="{DynamicResource WhisprTextMuted}"/>
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <Slider x:Name="NoiseGateHoldSlider" Minimum="0" Maximum="500" Width="200" Value="{Binding NoiseGateHoldMs, Mode=TwoWay}"/>
+                    <TextBlock x:Name="NoiseGateHoldLabel" Text="{Binding NoiseGateHoldLabel}" Foreground="{DynamicResource WhisprTextMuted}" VerticalAlignment="Center" MinWidth="50"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
 
-        <TextBlock Text="Mic cutoff delay (push-to-talk):" FontWeight="SemiBold" Foreground="{DynamicResource WhisprTextSecondary}" Margin="0,16,0,4"/>
-        <StackPanel Orientation="Horizontal" Spacing="12">
-            <Slider x:Name="CutoffDelaySlider" Minimum="0" Maximum="500" Width="200" Value="{Binding CutoffDelayMs, Mode=TwoWay}"/>
-            <TextBlock x:Name="CutoffDelayLabel" Text="{Binding CutoffDelayLabel}" Foreground="{DynamicResource WhisprTextMuted}" VerticalAlignment="Center" MinWidth="50"/>
-        </StackPanel>
-        <TextBlock Text="Delay before mic stops after releasing the talk button. Prevents cutting off words." FontSize="11" Foreground="{DynamicResource WhisprTextMuted}" Margin="0,2,0,0"/>
+        <!-- Push-to-talk settings (only when that mode is selected) -->
+        <Border IsVisible="{Binding IsPushToTalkSectionEnabled}" Background="{DynamicResource WhisprSurface}" CornerRadius="6" Padding="12" Margin="0,8,0,0">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Push-to-talk settings" FontWeight="SemiBold" Foreground="{DynamicResource WhisprTextSecondary}"/>
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <TextBlock x:Name="PttKeyDisplay" Text="{Binding PttKeyOrButtonDisplay}" Foreground="{DynamicResource WhisprTextSecondary}" VerticalAlignment="Center"/>
+                    <Button x:Name="SetPttKeyButton" Content="Set key" Command="{Binding StartListeningForPttKeyCommand}"
+                            IsEnabled="{Binding IsListeningForPttKey, Converter={x:Static conv:InverseBoolConverter.Instance}}"/>
+                    <TextBlock Text="Press any key or mouse button..." Foreground="{DynamicResource WhisprTextMuted}" FontSize="12" VerticalAlignment="Center"
+                               IsVisible="{Binding IsListeningForPttKey}"/>
+                </StackPanel>
+                <TextBlock Text="Mic cutoff delay (delay before mic stops after releasing the button):" FontSize="11" Foreground="{DynamicResource WhisprTextMuted}"/>
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <Slider x:Name="CutoffDelaySlider" Minimum="0" Maximum="500" Width="200" Value="{Binding CutoffDelayMs, Mode=TwoWay}"/>
+                    <TextBlock x:Name="CutoffDelayLabel" Text="{Binding CutoffDelayLabel}" Foreground="{DynamicResource WhisprTextMuted}" VerticalAlignment="Center" MinWidth="50"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
 
-        <TextBlock x:Name="SavedText" Text="Settings saved." Foreground="{DynamicResource WhisprSuccess}" IsVisible="{Binding SavedTextVisible}" Margin="0,8,0,0"/>
+        <TextBlock x:Name="SavedText" Text="Settings saved." Foreground="{DynamicResource WhisprSuccess}" IsVisible="{Binding SavedTextVisible}" Margin="0,16,0,0"/>
         <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,24,0,0">
             <Button x:Name="SaveButton" Content="Save" Command="{Binding SaveCommand}"
                     Background="{DynamicResource WhisprAccent}" Foreground="#ffffff"/>

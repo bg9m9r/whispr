@@ -34,7 +34,7 @@ public sealed class SettingsViewModelTests
     {
         var audioSettings = new FakeAudioSettings
         {
-            VoiceActivated = false,
+            TransmitMode = "ptt",
             MicCutoffDelayMs = 200,
             NoiseGateOpen = 15,
             NoiseGateClose = 8,
@@ -45,12 +45,12 @@ public sealed class SettingsViewModelTests
 
         var vm = new SettingsViewModel(host, audioSettings, deviceProvider);
 
-        vm.VoiceActivated = true;
+        vm.TransmitMode = "voice";
         vm.CutoffDelayMs = 100;
         vm.SaveCommand.Execute(null);
 
         Assert.True(audioSettings.SaveCalled);
-        Assert.True(audioSettings.VoiceActivated);
+        Assert.Equal("voice", audioSettings.TransmitMode);
         Assert.Equal(100, audioSettings.MicCutoffDelayMs);
     }
 
