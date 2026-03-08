@@ -14,7 +14,27 @@ env:
   DOTNET_VERSION: '10.0.x'
 
 jobs:
+  # Single source of truth: GitHub release (tag or workflow_dispatch input) dictates version for both client and server
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag_name: ${{ steps.version.outputs.tag_name }}
+    steps:
+      - name: Get version from release
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+            echo "tag_name=v${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+            echo "tag_name=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+          echo "Release version: ${{ steps.version.outputs.version }}"
+
   build-client:
+    needs: version
     strategy:
       fail-fast: false
       matrix:
@@ -35,23 +55,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Get version
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-          fi
-        shell: bash
-
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Publish Client
-        run: dotnet publish src/Whispr.Client/Whispr.Client.csproj -c Release -r ${{ matrix.rid }} --self-contained -o publish -p:Version=${{ steps.version.outputs.version }}
+        run: dotnet publish src/Whispr.Client/Whispr.Client.csproj -c Release -r ${{ matrix.rid }} --self-contained -o publish -p:Version=${{ needs.version.outputs.version }}
 
       - name: Sign Windows executables
         if: matrix.archive == 'zip'
@@ -75,12 +85,12 @@ jobs:
       - name: Archive (Windows)
         if: matrix.archive == 'zip'
         run: |
-          Compress-Archive -Path publish\* -DestinationPath whispr-client-${{ steps.version.outputs.version }}-${{ matrix.rid }}.zip
+          Compress-Archive -Path publish\* -DestinationPath whispr-client-${{ needs.version.outputs.version }}-${{ matrix.rid }}.zip
 
       - name: Archive (Linux/macOS)
         if: matrix.archive == 'tar.gz'
         run: |
-          tar czf whispr-client-${{ steps.version.outputs.version }}-${{ matrix.rid }}.tar.gz -C publish .
+          tar czf whispr-client-${{ needs.version.outputs.version }}-${{ matrix.rid }}.tar.gz -C publish .
           rm -rf publish
 
       - name: Upload artifact (Windows)
@@ -88,16 +98,17 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: client-${{ matrix.rid }}
-          path: whispr-client-${{ steps.version.outputs.version }}-${{ matrix.rid }}.zip
+          path: whispr-client-${{ needs.version.outputs.version }}-${{ matrix.rid }}.zip
 
       - name: Upload artifact (Linux/macOS)
         if: matrix.archive == 'tar.gz'
         uses: actions/upload-artifact@v4
         with:
           name: client-${{ matrix.rid }}
-          path: whispr-client-${{ steps.version.outputs.version }}-${{ matrix.rid }}.tar.gz
+          path: whispr-client-${{ needs.version.outputs.version }}-${{ matrix.rid }}.tar.gz
 
   build-server:
+    needs: version
     strategy:
       fail-fast: false
       matrix:
@@ -112,42 +123,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Get version
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-          fi
-        shell: bash
-
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Publish Server
-        run: dotnet publish src/Whispr.Server/Whispr.Server.csproj -c Release -r ${{ matrix.rid }} --self-contained -o publish -p:Version=${{ steps.version.outputs.version }}
+        run: dotnet publish src/Whispr.Server/Whispr.Server.csproj -c Release -r ${{ matrix.rid }} --self-contained -o publish -p:Version=${{ needs.version.outputs.version }}
 
       - name: Archive (Windows)
         if: matrix.archive == 'zip'
         run: |
-          Compress-Archive -Path publish\* -DestinationPath whispr-server-${{ steps.version.outputs.version }}-${{ matrix.rid }}.zip
+          Compress-Archive -Path publish\* -DestinationPath whispr-server-${{ needs.version.outputs.version }}-${{ matrix.rid }}.zip
 
       - name: Archive (Linux/macOS)
         if: matrix.archive == 'tar.gz'
         run: |
-          tar czf whispr-server-${{ steps.version.outputs.version }}-${{ matrix.rid }}.tar.gz -C publish .
+          tar czf whispr-server-${{ needs.version.outputs.version }}-${{ matrix.rid }}.tar.gz -C publish .
           rm -rf publish
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: server-${{ matrix.rid }}
-          path: whispr-server-${{ steps.version.outputs.version }}-${{ matrix.rid }}.${{ matrix.archive == 'zip' && 'zip' || 'tar.gz' }}
+          path: whispr-server-${{ needs.version.outputs.version }}-${{ matrix.rid }}.${{ matrix.archive == 'zip' && 'zip' || 'tar.gz' }}
 
   build-docker:
+    needs: version
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     permissions:
@@ -173,7 +175,7 @@ jobs:
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=ref,event=tag
-            type=raw,value=v${{ github.event.inputs.version }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=${{ needs.version.outputs.tag_name }},enable=${{ github.event_name == 'workflow_dispatch' }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
@@ -181,27 +183,18 @@ jobs:
           context: .
           file: docker/Dockerfile
           push: true
+          build-args: |
+            VERSION=${{ needs.version.outputs.version }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
   release:
-    needs: [build-client, build-server]
+    needs: [version, build-client, build-server]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     permissions:
       contents: write
     steps:
-      - name: Get version
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-            echo "TAG_NAME=v${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-            echo "TAG_NAME=${{ github.ref_name }}" >> $GITHUB_OUTPUT
-          fi
-
       - name: Download client artifacts
         uses: actions/download-artifact@v4
         with:
@@ -227,8 +220,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.TAG_NAME }}
-          name: Release ${{ steps.version.outputs.VERSION }}
+          tag_name: ${{ needs.version.outputs.tag_name }}
+          name: Release ${{ needs.version.outputs.version }}
           draft: false
           files: release/*
         env:

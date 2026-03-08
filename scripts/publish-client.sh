@@ -15,8 +15,11 @@ ARCHIVE_NAME="whispr-client-$RID"
 
 cd "$REPO_ROOT"
 
-echo "Publishing Whispr.Client for $RID..."
-dotnet publish "$PROJECT" -c Release -r "$RID" --self-contained -o "$PUBLISH_DIR"
+# Use latest git tag (e.g. v1.0.0 -> 1.0.0) or default to 1.0.0 for dev builds
+VERSION="${VERSION:-$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo '1.0.0')}"
+
+echo "Publishing Whispr.Client for $RID (version $VERSION)..."
+dotnet publish "$PROJECT" -c Release -r "$RID" --self-contained -o "$PUBLISH_DIR" -p:Version="$VERSION"
 
 mkdir -p "$DIST_DIR"
 

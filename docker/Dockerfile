@@ -1,5 +1,7 @@
 # Build stage
+# VERSION build arg is set by release workflow (e.g. 1.0.0)
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+ARG VERSION=0.0.0
 WORKDIR /src
 
 COPY src/Whispr.sln ./
@@ -7,7 +9,8 @@ COPY src/Whispr.Core/ ./Whispr.Core/
 COPY src/Whispr.Server/ ./Whispr.Server/
 
 RUN dotnet publish Whispr.Server/Whispr.Server.csproj \
-    -c Release -r linux-x64 --self-contained -o /app/publish
+    -c Release -r linux-x64 --self-contained -o /app/publish \
+    -p:Version=${VERSION}
 
 # Runtime stage (runtime-deps = no .NET runtime; self-contained has it)
 FROM mcr.microsoft.com/dotnet/runtime-deps:10.0 AS runtime
