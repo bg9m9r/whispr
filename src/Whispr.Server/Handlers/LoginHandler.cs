@@ -1,7 +1,10 @@
+using System.Reflection;
+using Whispr.Core;
 using Whispr.Core.Models;
 using Whispr.Core.Protocol;
 using Whispr.Server.Server;
 using Whispr.Server.Services;
+using ProtocolMemberInfo = Whispr.Core.Protocol.MemberInfo;
 
 namespace Whispr.Server.Handlers;
 
@@ -22,6 +25,20 @@ internal sealed class LoginHandler(IAuthService auth, IChannelService channels, 
         if (!PayloadValidation.IsValidUsername(payload.Username, out var usernameError))
         {
             await ctx.SendErrorAsync("invalid_payload", usernameError!);
+            return;
+        }
+
+        var serverVersion = VersionHelper.GetVersion(Assembly.GetExecutingAssembly());
+        if (!string.IsNullOrEmpty(payload.ClientVersion) && !VersionHelper.IsAtLeast(payload.ClientVersion, serverVersion))
+        {
+            var bytes = ControlProtocol.Serialize(MessageTypes.LoginResponse, new LoginResponsePayload
+            {
+                Success = false,
+                Error = $"Client version {payload.ClientVersion} is too old. Server requires {serverVersion} or newer. Please update your client.",
+                ServerVersion = serverVersion,
+                MinClientVersion = serverVersion
+            });
+            await ctx.Stream.WriteAsync(bytes, ctx.CancellationToken);
             return;
         }
 
@@ -65,7 +82,9 @@ internal sealed class LoginHandler(IAuthService auth, IChannelService channels, 
             UserId = user.Id,
             Username = user.Username,
             Role = user.Role.ToString().ToLowerInvariant(),
-            IsAdmin = auth.IsAdmin(user.Id)
+            IsAdmin = auth.IsAdmin(user.Id),
+            ServerVersion = serverVersion,
+            MinClientVersion = serverVersion
         });
         await ctx.Stream.WriteAsync(response, ctx.CancellationToken);
 
@@ -74,7 +93,7 @@ internal sealed class LoginHandler(IAuthService auth, IChannelService channels, 
         {
             var (channel, keyMaterial) = joinResult.Value;
             ctx.State.RoomId = channel.Id;
-            var members = channel.MemberIds.Select(id => new MemberInfo
+            var members = channel.MemberIds.Select(id => new ProtocolMemberInfo
             {
                 UserId = id,
                 Username = auth.GetUsername(id) ?? id.ToString(),
@@ -95,7 +114,7 @@ internal sealed class LoginHandler(IAuthService auth, IChannelService channels, 
 
             var channelInfos = channels.ListChannels().Select(c =>
             {
-                var m = c.MemberIds.Select(id => new MemberInfo
+                var m = c.MemberIds.Select(id => new ProtocolMemberInfo
                 {
                     UserId = id,
                     Username = auth.GetUsername(id) ?? id.ToString(),

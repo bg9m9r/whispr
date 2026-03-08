@@ -2,5 +2,10 @@
   <PropertyGroup>
     <!-- Trimming can break Avalonia/reflection; disable for distribution builds -->
     <PublishTrimmed>false</PublishTrimmed>
+    <!-- Version: overridden by release pipeline via -p:Version=x.y.z -->
+    <Version Condition="'$(Version)' == ''">0.0.0</Version>
+    <AssemblyVersion>$(Version)</AssemblyVersion>
+    <FileVersion>$(Version)</FileVersion>
+    <InformationalVersion>$(Version)</InformationalVersion>
   </PropertyGroup>
 </Project>

@@ -23,7 +23,7 @@ The server requires a PFX certificate for the control channel. Set the path in `
 
 Let's Encrypt provides free, trusted certificates. Use Certbot or another ACME client.
 
-**Prerequisites:** A domain pointing to your server (e.g. `voice.example.com`); ports 80 and 443 open (HTTP-01) or DNS access (DNS-01).
+**Prerequisites:** A domain pointing to your server (e.g. `voice.example.com`); port 80 open for HTTP-01 challenges (or DNS access for DNS-01).
 
 ```bash
 # Install Certbot (Ubuntu/Debian)
@@ -45,13 +45,10 @@ sudo openssl pkcs12 -export \
 
 Use an empty password for convenience, or set `WHISPR_CERT_PASSWORD` for a secure password.
 
-**Auto-renewal:** Let's Encrypt certs expire in 90 days. Add to crontab:
+**Auto-renewal:** Let's Encrypt certs expire in 90 days. Restart the server after renewal so it loads the new certificate.
 
-```bash
-0 0 * * * certbot renew --quiet --post-hook "systemctl restart whispr"
-```
-
-Restart the Whispr server after renewal so it loads the new certificate.
+- **systemd install:** Add to crontab: `0 0 * * * certbot renew --quiet --post-hook "systemctl restart whispr"`
+- **Docker install:** Use the [Docker Let's Encrypt flow](#lets-encrypt-using-certbotcertbot) below; its renewal script converts the cert to PFX and restarts the container. Do not use the systemctl post-hook — there is no systemd service when running in Docker.
 
 For custom CA (internal) or development self-signed certs, see the [Certificate Guide](CERTIFICATE_GUIDE.md).
 
@@ -82,7 +79,29 @@ Or in Docker/systemd, pass `-e WHISPR_MESSAGE_ENCRYPTION_KEY=...` or `Environmen
 
 ---
 
+## Version compatibility
+
+The server requires clients to be at least the same version as the server. On login, the server checks the client version; clients older than the server are rejected with a clear error (e.g. "Client version 0.9.0 is too old. Server requires 1.0.0 or newer. Please update your client."). Updated or newer clients can always connect.
+
+---
+
 ## Docker
+
+### Quick setup (Ubuntu)
+
+On an Ubuntu server with Docker installed (e.g. DigitalOcean Docker droplet), run the setup script to configure Let's Encrypt, create the encryption key, and start Whispr:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/OWNER/whispr/main/scripts/setup-server.sh | bash
+```
+
+Or from a cloned repo:
+
+```bash
+./scripts/setup-server.sh
+```
+
+The script prompts for domain, email, and Docker image, then sets up certificates, firewall (UFW), admin user, and a cron job for certificate renewal. Replace `OWNER/whispr` with your GitHub repo.
 
 ### Using a pre-built image
 
@@ -94,6 +113,7 @@ docker run -d --name whispr \
   -v /path/to/cert.pfx:/app/cert.pfx:ro \
   -v whispr-data:/app/data \
   -e WHISPR_CERT_PASSWORD= \
+  -e WHISPR_MESSAGE_ENCRYPTION_KEY=your-base64-key-here \
   ghcr.io/owner/whispr:v1.0.0
 ```
 
@@ -106,6 +126,7 @@ docker run -d --name whispr \
   -e CertificatePath=/app/cert.pfx \
   -e DatabasePath=/app/data/whispr.db \
   -e WHISPR_CERT_PASSWORD= \
+  -e WHISPR_MESSAGE_ENCRYPTION_KEY=your-base64-key-here \
   ghcr.io/owner/whispr:v1.0.0
 ```
 
@@ -127,6 +148,7 @@ services:
       - CertificatePath=/app/cert.pfx
       - DatabasePath=/app/data/whispr.db
       - WHISPR_CERT_PASSWORD=
+      - WHISPR_MESSAGE_ENCRYPTION_KEY=your-base64-key-here
     restart: unless-stopped
 
 volumes:
@@ -139,14 +161,24 @@ From the repository root:
 
 ```bash
 docker build -f docker/Dockerfile -t whispr-server .
-docker run -d -p 8443:8443 -p 8444:8444/udp -v /path/to/cert.pfx:/app/cert.pfx:ro whispr-server
+docker run -d --name whispr \
+  -p 8443:8443 -p 8444:8444/udp \
+  -v /path/to/cert.pfx:/app/cert.pfx:ro \
+  -v whispr-data:/app/data \
+  -e CertificatePath=/app/cert.pfx \
+  -e DatabasePath=/app/data/whispr.db \
+  -e WHISPR_CERT_PASSWORD= \
+  -e WHISPR_MESSAGE_ENCRYPTION_KEY=your-base64-key-here \
+  whispr-server
 ```
+
+Mount your cert and set paths as needed; see the pre-built examples above for volume layout.
 
 ### Let's Encrypt (using certbot/certbot)
 
 Uses the official [certbot/certbot](https://hub.docker.com/r/certbot/certbot) image. Requires port 80 for the ACME challenge.
 
-**Prerequisites:** A domain pointing to your server (e.g. `voice.example.com`); ports 80, 8443, and 8444 open.
+**Prerequisites:** A domain pointing to your server (e.g. `voice.example.com`); ports 80 (certbot), 8443, and 8444 open.
 
 Create a `.env` file (or export the variables):
 
@@ -161,7 +193,7 @@ Then from the repo root:
 docker compose -f docker/docker-compose.letsencrypt.yml up -d
 ```
 
-On first run, the certbot container obtains a certificate, converts it to PFX, and exits. Whispr then starts using the cert. To use a pre-built image instead of building from source, set `image: ghcr.io/owner/whispr:v1.0.0` in the compose file and remove the `build:` section.
+On first run, the certbot container obtains a certificate, converts it to PFX, and exits. Whispr then starts using the cert. Add `WHISPR_MESSAGE_ENCRYPTION_KEY` to the whispr service `environment` block (see [Message encryption](#message-encryption-database)). To use a pre-built image instead of building from source, set `image: ghcr.io/owner/whispr:v1.0.0` in the compose file and remove the `build:` section.
 
 **Renewal:** Let's Encrypt certs expire in 90 days. Add to crontab (ensure `.env` exists with `CERTBOT_DOMAIN` and `CERTBOT_EMAIL`):
 
@@ -197,6 +229,7 @@ ExecStart=/opt/whispr/Whispr.Server
 Restart=on-failure
 RestartSec=5
 Environment=WHISPR_CERT_PASSWORD=
+Environment=WHISPR_MESSAGE_ENCRYPTION_KEY=your-base64-key-here
 
 [Install]
 WantedBy=multi-user.target
@@ -240,6 +273,7 @@ sudo firewall-cmd --reload
 |------|----------|--------|
 | 8443 | TCP | Allow inbound (control) |
 | 8444 | UDP | Allow inbound (audio) |
+| 80 | TCP | Allow inbound if using certbot standalone for Let's Encrypt auto-renewal |
 
 Allow outbound for any HTTPS/DNS the server needs (e.g. certificate revocation checks).
 
@@ -266,6 +300,13 @@ When using the published binary:
 ```bash
 ./Whispr.Server add-user myuser mypassword
 ./Whispr.Server add-user admin mypassword --admin
+```
+
+When using Docker:
+
+```bash
+docker exec -it whispr ./Whispr.Server add-user myuser mypassword
+docker exec -it whispr ./Whispr.Server add-user admin mypassword --admin
 ```
 
 For development only, you can enable `SeedTestUsers: true` in `appsettings.json` to auto-seed `admin/admin` and `bob/bob` when the user store is empty. **Do not use in production.**

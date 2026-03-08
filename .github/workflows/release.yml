@@ -35,13 +35,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Publish Client
-        run: dotnet publish src/Whispr.Client/Whispr.Client.csproj -c Release -r ${{ matrix.rid }} --self-contained -o publish
+        run: dotnet publish src/Whispr.Client/Whispr.Client.csproj -c Release -r ${{ matrix.rid }} --self-contained -o publish -p:Version=${{ steps.version.outputs.version }}
 
       - name: Sign Windows executables
         if: matrix.archive == 'zip'
@@ -65,12 +75,12 @@ jobs:
       - name: Archive (Windows)
         if: matrix.archive == 'zip'
         run: |
-          Compress-Archive -Path publish\* -DestinationPath whispr-client-${{ matrix.rid }}.zip
+          Compress-Archive -Path publish\* -DestinationPath whispr-client-${{ steps.version.outputs.version }}-${{ matrix.rid }}.zip
 
       - name: Archive (Linux/macOS)
         if: matrix.archive == 'tar.gz'
         run: |
-          tar czf whispr-client-${{ matrix.rid }}.tar.gz -C publish .
+          tar czf whispr-client-${{ steps.version.outputs.version }}-${{ matrix.rid }}.tar.gz -C publish .
           rm -rf publish
 
       - name: Upload artifact (Windows)
@@ -78,14 +88,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: client-${{ matrix.rid }}
-          path: whispr-client-${{ matrix.rid }}.zip
+          path: whispr-client-${{ steps.version.outputs.version }}-${{ matrix.rid }}.zip
 
       - name: Upload artifact (Linux/macOS)
         if: matrix.archive == 'tar.gz'
         uses: actions/upload-artifact@v4
         with:
           name: client-${{ matrix.rid }}
-          path: whispr-client-${{ matrix.rid }}.tar.gz
+          path: whispr-client-${{ steps.version.outputs.version }}-${{ matrix.rid }}.tar.gz
 
   build-server:
     strategy:
@@ -102,30 +112,40 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Publish Server
-        run: dotnet publish src/Whispr.Server/Whispr.Server.csproj -c Release -r ${{ matrix.rid }} --self-contained -o publish
+        run: dotnet publish src/Whispr.Server/Whispr.Server.csproj -c Release -r ${{ matrix.rid }} --self-contained -o publish -p:Version=${{ steps.version.outputs.version }}
 
       - name: Archive (Windows)
         if: matrix.archive == 'zip'
         run: |
-          Compress-Archive -Path publish\* -DestinationPath whispr-server-${{ matrix.rid }}.zip
+          Compress-Archive -Path publish\* -DestinationPath whispr-server-${{ steps.version.outputs.version }}-${{ matrix.rid }}.zip
 
       - name: Archive (Linux/macOS)
         if: matrix.archive == 'tar.gz'
         run: |
-          tar czf whispr-server-${{ matrix.rid }}.tar.gz -C publish .
+          tar czf whispr-server-${{ steps.version.outputs.version }}-${{ matrix.rid }}.tar.gz -C publish .
           rm -rf publish
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: server-${{ matrix.rid }}
-          path: whispr-server-${{ matrix.rid }}.${{ matrix.archive == 'zip' && 'zip' || 'tar.gz' }}
+          path: whispr-server-${{ steps.version.outputs.version }}-${{ matrix.rid }}.${{ matrix.archive == 'zip' && 'zip' || 'tar.gz' }}
 
   build-docker:
     runs-on: ubuntu-latest

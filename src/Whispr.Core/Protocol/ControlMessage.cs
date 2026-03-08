@@ -25,6 +25,10 @@ public sealed class LoginRequestPayload
 
     [JsonPropertyName("password")]
     public required string Password { get; init; }
+
+    /// <summary>Client version for compatibility check (e.g. "1.0.0").</summary>
+    [JsonPropertyName("clientVersion")]
+    public string? ClientVersion { get; init; }
 }
 
 /// <summary>
@@ -52,6 +56,14 @@ public sealed class LoginResponsePayload
 
     [JsonPropertyName("error")]
     public string? Error { get; init; }
+
+    /// <summary>Server version (e.g. "1.0.0").</summary>
+    [JsonPropertyName("serverVersion")]
+    public string? ServerVersion { get; init; }
+
+    /// <summary>Minimum supported client version. Client should be &gt;= this.</summary>
+    [JsonPropertyName("minClientVersion")]
+    public string? MinClientVersion { get; init; }
 }
 
 /// <summary>

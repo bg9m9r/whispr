@@ -45,6 +45,7 @@ services:
       - CertificatePath=/app/certs/cert.pfx
       - DatabasePath=/app/data/whispr.db
       - WHISPR_CERT_PASSWORD=
+      - WHISPR_MESSAGE_ENCRYPTION_KEY=${WHISPR_MESSAGE_ENCRYPTION_KEY}
     restart: unless-stopped
     depends_on:
       certbot:

@@ -36,14 +36,14 @@ rpm-ostree install libX11 libICE libSM fontconfig libgdiplus openal-soft libsecr
 
 ## Server (self-hosting)
 
-Download the server from [GitHub Releases](/releases). You need a TLS certificate (`cert.pfx`) to run it.
+**For production:** [Docker is recommended](docs/SERVER_SETUP.md#docker) — see [Server setup](docs/SERVER_SETUP.md) for Docker, systemd, and Let's Encrypt.
+
+**Required:** A TLS certificate (`cert.pfx`) and, when using a database, a **message encryption key** (`WHISPR_MESSAGE_ENCRYPTION_KEY`). See [Server setup → Message encryption](docs/SERVER_SETUP.md#message-encryption-database) for details.
 
 | Platform    | Download                    | Run |
 |-------------|-----------------------------|-----|
 | Windows x64 | `whispr-server-win-x64.zip` | Extract, add `cert.pfx`, then run `Whispr.Server.exe` |
 | Linux x64  | `whispr-server-linux-x64.tar.gz` | Extract, add `cert.pfx`, then `./Whispr.Server` |
-
-For production setup (Docker, systemd, Let's Encrypt), see **[Server setup](docs/SERVER_SETUP.md)**.
 
 ---
 

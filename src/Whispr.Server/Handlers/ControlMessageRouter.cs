@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Whispr.Core.Models;
 using Whispr.Core.Protocol;
+using Whispr.Server;
 using Whispr.Server.Server;
 using Whispr.Server.Services;
 
