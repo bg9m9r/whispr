@@ -77,7 +77,8 @@ public sealed class MicTestService : IDisposable
         }
 
         _encoder = Concentus.OpusCodecFactory.CreateEncoder(SampleRate, 1, Concentus.Enums.OpusApplication.OPUS_APPLICATION_VOIP);
-        _encoder.Bitrate = 32000;
+        _encoder.Bitrate = 48000; // Higher bitrate for better voice quality (was 32kbps)
+        _encoder.Complexity = 8;  // More CPU, better quality (default 5)
         _decoder = Concentus.OpusCodecFactory.CreateDecoder(SampleRate, 1);
 
         _cts = new CancellationTokenSource();
@@ -382,7 +383,8 @@ public sealed class MicTestService : IDisposable
         for (var i = 0; i < pcm.Length; i += 2)
         {
             var sampleIdx = i / 2;
-            var gain = sampleIdx < fadeSamples ? (float)sampleIdx / fadeSamples : 1f;
+            var t = sampleIdx < fadeSamples ? (float)sampleIdx / fadeSamples : 1f;
+            var gain = t * t * (3f - 2f * t); // smoothstep for softer onset
             var s = (short)(pcm[i] | (pcm[i + 1] << 8));
             var faded = (short)Math.Clamp(s * gain, -32768, 32767);
             pcm[i] = (byte)faded;
@@ -397,7 +399,8 @@ public sealed class MicTestService : IDisposable
         {
             var sampleIdx = i / 2;
             var distFromEnd = FrameSamples - sampleIdx;
-            var gain = distFromEnd <= fadeSamples ? (float)distFromEnd / fadeSamples : 1f;
+            var t = distFromEnd <= fadeSamples ? (float)distFromEnd / fadeSamples : 1f;
+            var gain = t * t * (3f - 2f * t); // smoothstep for softer release
             var s = (short)(pcm[i] | (pcm[i + 1] << 8));
             var faded = (short)Math.Clamp(s * gain, -32768, 32767);
             pcm[i] = (byte)faded;

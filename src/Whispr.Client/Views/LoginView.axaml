@@ -74,6 +74,7 @@
                         Background="{DynamicResource WhisprAccent}" Foreground="#ffffff"
                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                         Padding="0,14" FontWeight="SemiBold" FontSize="14"/>
+                <TextBlock Text="{Binding ClientVersion}" FontSize="11" Foreground="{DynamicResource WhisprTextMuted}" HorizontalAlignment="Center" Margin="0,8,0,0"/>
                 </StackPanel>
                 <Button x:Name="CloseButton" Content="✕" Click="OnCloseClick"
                         HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-8,-8,0"

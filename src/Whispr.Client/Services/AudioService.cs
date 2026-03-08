@@ -248,7 +248,8 @@ public sealed class AudioService : IDisposable
         _closeMargin = Math.Clamp(noiseGateClose, 2, 25);
         _holdFrames = Math.Max(0, noiseGateHoldMs / 20); // 20ms per frame
         _encoder = Concentus.OpusCodecFactory.CreateEncoder(SampleRate, 1, Concentus.Enums.OpusApplication.OPUS_APPLICATION_VOIP);
-        _encoder.Bitrate = 32000;
+        _encoder.Bitrate = 48000; // Higher bitrate for better voice quality (was 32kbps)
+        _encoder.Complexity = 8;  // More CPU, better quality (default 5)
         _decoder = Concentus.OpusCodecFactory.CreateDecoder(SampleRate, 1);
 
         _udpClient = new UdpClient(0, System.Net.Sockets.AddressFamily.InterNetwork);
@@ -515,7 +516,8 @@ public sealed class AudioService : IDisposable
         const int fadeSamples = 360; // ~7.5ms
         for (var i = 0; i < samples.Length && i < fadeSamples; i++)
         {
-            var gain = (float)i / fadeSamples;
+            var t = (float)i / fadeSamples;
+            var gain = t * t * (3f - 2f * t); // smoothstep for softer onset
             samples[i] = (short)Math.Clamp(samples[i] * gain, -32768, 32767);
         }
     }
@@ -526,7 +528,8 @@ public sealed class AudioService : IDisposable
         for (var i = 0; i < samples.Length; i++)
         {
             var distFromEnd = samples.Length - i;
-            var gain = distFromEnd <= fadeSamples ? (float)distFromEnd / fadeSamples : 1f;
+            var t = distFromEnd <= fadeSamples ? (float)distFromEnd / fadeSamples : 1f;
+            var gain = t * t * (3f - 2f * t); // smoothstep for softer release
             samples[i] = (short)Math.Clamp(samples[i] * gain, -32768, 32767);
         }
     }

@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
+using System.Reflection;
 using Whispr.Client.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Whispr.Client.Services;
+using Whispr.Core;
 using Whispr.Core.Protocol;
 
 namespace Whispr.Client.ViewModels;
@@ -37,6 +39,9 @@ public sealed partial class LoginViewModel : ObservableObject
 
     /// <summary>Saved servers for one-click connect. Populated from ServerSettings.Servers.</summary>
     public ObservableCollection<SavedServerItem> SavedServers { get; } = new();
+
+    /// <summary>Client version for display (e.g. login footer).</summary>
+    public string ClientVersion => VersionHelper.GetVersion(typeof(LoginViewModel).Assembly);
 
     public LoginViewModel(ILoginViewHost host, ILoginService loginService, IServerSettingsStore serverSettings, ICredentialStore credentialStore)
     {

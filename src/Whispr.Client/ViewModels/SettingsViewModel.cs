@@ -1,7 +1,9 @@
 using System.Collections.Generic;
+using System.Reflection;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Whispr.Client.Services;
+using Whispr.Core;
 
 namespace Whispr.Client.ViewModels;
 
@@ -76,6 +78,12 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private bool _isListeningForPttKey;
+
+    /// <summary>Client version for display (e.g. settings footer).</summary>
+    public string ClientVersion => VersionHelper.GetVersion(typeof(SettingsViewModel).Assembly);
+
+    /// <summary>Display string for version in settings.</summary>
+    public string ClientVersionDisplay => $"Version {ClientVersion}";
 
     /// <summary>Short label for the current PTT binding, e.g. "V", "Space", "Middle mouse".</summary>
     public string PttKeyOrButtonDisplay => PttKeyOrButtonToDisplay(PttKeyOrButton);

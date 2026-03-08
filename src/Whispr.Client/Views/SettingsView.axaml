@@ -84,6 +84,7 @@
                     Background="{DynamicResource WhisprAccent}" Foreground="#ffffff"/>
             <Button x:Name="BackButton" Content="Back" Command="{Binding BackCommand}"/>
         </StackPanel>
+        <TextBlock Text="{Binding ClientVersionDisplay}" FontSize="11" Foreground="{DynamicResource WhisprTextMuted}" Margin="0,16,0,0"/>
     </StackPanel>
         </ScrollViewer>
     </Grid>

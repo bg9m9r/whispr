@@ -1,6 +1,9 @@
+using System.Reflection;
+using Whispr.Core;
 using Whispr.Core.Crypto;
 using Whispr.Core.Models;
 using Whispr.Core.Protocol;
+using ProtocolMemberInfo = Whispr.Core.Protocol.MemberInfo;
 
 namespace Whispr.Client.Services;
 
@@ -44,7 +47,8 @@ public sealed class AuthService : IAuthService
     /// </summary>
     public async Task<LoginResult> LoginAsync(string username, string password, CancellationToken ct = default)
     {
-        await _connection.SendAsync(MessageTypes.LoginRequest, new LoginRequestPayload { Username = username, Password = password }, ct);
+        var clientVersion = VersionHelper.GetVersion(Assembly.GetExecutingAssembly());
+        await _connection.SendAsync(MessageTypes.LoginRequest, new LoginRequestPayload { Username = username, Password = password, ClientVersion = clientVersion }, ct);
         var response = await ReadNextAsync(ct);
         if (response is null)
             return new LoginResult(false, "Connection closed");
@@ -90,7 +94,7 @@ public sealed class AuthService : IAuthService
             ? KeyDerivation.DeriveAudioKey(joinedPayload.KeyMaterial)
             : null;
         var type = string.Equals(joinedPayload.Type, "text", StringComparison.OrdinalIgnoreCase) ? "text" : "voice";
-        var members = joinedPayload.Members ?? joinedPayload.MemberIds.Select(id => new MemberInfo { UserId = id, Username = id.ToString(), ClientId = 0 }).ToList();
+        var members = joinedPayload.Members ?? joinedPayload.MemberIds.Select(id => new ProtocolMemberInfo { UserId = id, Username = id.ToString(), ClientId = 0 }).ToList();
         var roomResult = new ChannelJoinedResult(joinedPayload.RoomId, joinedPayload.RoomName, type, joinedPayload.MemberIds, members, key);
         return (roomResult, statePayload);
     }
@@ -189,7 +193,7 @@ public sealed class AuthService : IAuthService
             ? KeyDerivation.DeriveAudioKey(payload.KeyMaterial)
             : null;
         var type = string.Equals(payload.Type, "text", StringComparison.OrdinalIgnoreCase) ? "text" : "voice";
-        var members = payload.Members ?? payload.MemberIds.Select(id => new MemberInfo { UserId = id, Username = id.ToString(), ClientId = 0 }).ToList();
+        var members = payload.Members ?? payload.MemberIds.Select(id => new ProtocolMemberInfo { UserId = id, Username = id.ToString(), ClientId = 0 }).ToList();
         return new ChannelJoinedResult(payload.RoomId, payload.RoomName, type, payload.MemberIds, members, key);
     }
 }
@@ -204,4 +208,4 @@ public sealed record LoginResult(bool Success, string? Error = null);
 /// </summary>
 /// <param name="ChannelType">"voice" or "text".</param>
 /// <param name="AudioKey">Null for text channels (no audio).</param>
-public sealed record ChannelJoinedResult(Guid ChannelId, string ChannelName, string ChannelType, IReadOnlyList<Guid> MemberIds, IReadOnlyList<MemberInfo> Members, byte[]? AudioKey);
+public sealed record ChannelJoinedResult(Guid ChannelId, string ChannelName, string ChannelType, IReadOnlyList<Guid> MemberIds, IReadOnlyList<ProtocolMemberInfo> Members, byte[]? AudioKey);
