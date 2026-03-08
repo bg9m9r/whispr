@@ -177,13 +177,21 @@ The script prompts for domain, email, and Docker image, then sets up certificate
 
 ### Updating
 
-**On the server** (Docker install via setup-server.sh): Run the update script created during setup:
+**On the server** (Docker install via setup-server.sh): To pull the latest image and restart:
 
 ```bash
-/opt/whispr/update.sh
+whispr-update
 ```
 
-This pulls the latest image and restarts Whispr. If you installed to a different directory, run `./update.sh` from that directory.
+(If you chose to install the `whispr-update` command during setup. Otherwise, run `./update.sh` from your install directory, e.g. `/opt/whispr/update.sh`.)
+
+**One-liner from anywhere** (works on any server with Whispr installed):
+
+```bash
+curl -sSL https://raw.githubusercontent.com/OWNER/whispr/main/scripts/update-remote.sh | bash
+```
+
+Replace `OWNER/whispr` with your repo. For a custom install path: `WHISPR_DIR=/path/to/whispr curl -sSL ... | bash`.
 
 **From the git repo** (build and push a new image):
 

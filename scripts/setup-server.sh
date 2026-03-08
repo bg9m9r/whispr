@@ -230,6 +230,29 @@ echo "Whispr updated."
 UPDATE_EOF
 chmod +x "$UPDATE_SCRIPT"
 
+# --- Optional: install whispr-update command for easy updates from anywhere ---
+if [[ -w /usr/local/bin ]] 2>/dev/null || sudo -n true 2>/dev/null; then
+  echo ""
+  read -rp "Install 'whispr-update' command for easy updates? [Y/n] " do_bin
+  if [[ "${do_bin,,}" != "n" && "${do_bin,,}" != "no" ]]; then
+    BIN_SCRIPT="/usr/local/bin/whispr-update"
+    if [[ -w /usr/local/bin ]]; then
+      cat > "$BIN_SCRIPT" << BIN_EOF
+#!/usr/bin/env bash
+exec $UPDATE_SCRIPT
+BIN_EOF
+      chmod +x "$BIN_SCRIPT"
+    else
+      sudo tee "$BIN_SCRIPT" > /dev/null << BIN_EOF
+#!/usr/bin/env bash
+exec $UPDATE_SCRIPT
+BIN_EOF
+      sudo chmod +x "$BIN_SCRIPT"
+    fi
+    echo "Installed. You can now run 'whispr-update' from anywhere to update."
+  fi
+fi
+
 if command -v crontab &>/dev/null; then
   echo ""
   read -rp "Add cron job for certificate renewal (daily)? [Y/n] " do_cron
